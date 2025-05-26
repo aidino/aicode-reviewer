@@ -16,13 +16,9 @@ Prompt to Cursor (Project Setup):
 "Initialize a new Python project for an AI Code Review system.  
 Referencing PLANNING.MD (Sections: Overall Architecture, Technology Stack) and TASK.MD (Milestone 1 setup):
 
-1. Create the root project directory named ai\_code\_reviewer.  
-2. Inside ai\_code\_reviewer, create top-level directories: src, scripts, tests, docs, config.  
-3. Initialize a Git repository.  
-4. Create a Python-specific .gitignore.  
-5. Create requirements.txt with: langchain, langgraph, python-dotenv, fastapi, uvicorn\[standard\], requests, GitPython, tree-sitter, pytest, pytest-cov, pytest-asyncio (for FastAPI async tests), httpx (for testing FastAPI).  
-6. Create a placeholder README.md in root (from artifact).  
-7. Copy PLANNING.MD and TASK.MD into docs/."
+1. create top-level directories: src, scripts, tests, docs, config.   
+2. Create requirements.txt with: langchain, langgraph, python-dotenv, fastapi, uvicorn\[standard\], requests, GitPython, tree-sitter, pytest, pytest-cov, pytest-asyncio (for FastAPI async tests), httpx (for testing FastAPI).  
+3. Copy PLANNING.MD and TASK.MD into docs/."
 
 ### **Milestone 1.2: LangGraph Orchestration Layer Setup**
 

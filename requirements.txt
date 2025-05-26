@@ -1,0 +1,27 @@
+# Core LangChain and LangGraph for orchestration
+langchain
+langgraph
+
+# Environment and configuration
+python-dotenv
+
+# Web API framework
+fastapi
+uvicorn[standard]
+
+# HTTP requests
+requests
+
+# Git operations
+GitPython
+
+# AST parsing
+tree-sitter
+
+# Testing framework
+pytest
+pytest-cov
+pytest-asyncio
+
+# HTTP client for testing FastAPI
+httpx 
