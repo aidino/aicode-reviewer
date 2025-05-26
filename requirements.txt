@@ -47,3 +47,8 @@ pytest-asyncio
 
 # HTTP client for testing FastAPI
 httpx 
+
+# Task queue and async processing
+celery
+redis
+aiofiles

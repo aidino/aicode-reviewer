@@ -13,8 +13,10 @@ from uuid import uuid4
 
 from src.webapp.backend.models.scan_models import (
     ReportDetail, ScanInfo, ScanSummary, StaticAnalysisFinding, 
-    LLMReview, DiagramData, ScanMetadata, ScanType, ScanStatus, SeverityLevel
+    LLMReview, DiagramData, ScanMetadata, ScanType, ScanStatus, SeverityLevel,
+    ScanRequest, ScanInitiateResponse
 )
+from src.webapp.backend.services.task_queue_service import get_task_queue_service
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ class ScanService:
     def __init__(self):
         """Initialize the scan service."""
         logger.info("Initializing ScanService")
+        self._task_queue = get_task_queue_service()
         # TODO: Add database connection or storage backend
         # TODO: Add configuration for scan timeouts and limits
         
@@ -63,6 +66,95 @@ class ScanService:
         except Exception as e:
             logger.error(f"Error retrieving scan report for {scan_id}: {str(e)}")
             return None
+    
+    async def initiate_scan(self, scan_request: ScanRequest) -> ScanInitiateResponse:
+        """
+        Initiate a new scan asynchronously.
+        
+        Args:
+            scan_request (ScanRequest): Scan configuration and parameters
+            
+        Returns:
+            ScanInitiateResponse: Response with scan ID and job ID
+        """
+        logger.info(f"Initiating scan for repository: {scan_request.repo_url}")
+        
+        try:
+            # Start the scan task asynchronously
+            scan_id, job_id = await self._task_queue.initiate_scan(
+                scan_request, 
+                orchestrator_callback=self._execute_scan_with_orchestrator
+            )
+            
+            # Calculate estimated duration based on scan type
+            estimated_duration = 300 if scan_request.scan_type == ScanType.PR else 900  # 5 min for PR, 15 min for project
+            
+            response = ScanInitiateResponse(
+                scan_id=scan_id,
+                job_id=job_id,
+                status=ScanStatus.PENDING,
+                message=f"Scan initiated successfully. Scan ID: {scan_id}",
+                estimated_duration=estimated_duration,
+                repository=scan_request.repo_url,
+                scan_type=scan_request.scan_type
+            )
+            
+            logger.info(f"Successfully initiated scan with ID: {scan_id}, Job ID: {job_id}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error initiating scan for {scan_request.repo_url}: {str(e)}")
+            raise
+    
+    async def _execute_scan_with_orchestrator(self, scan_request: ScanRequest) -> Dict:
+        """
+        Execute scan using the LangGraph orchestrator.
+        
+        Args:
+            scan_request (ScanRequest): Scan configuration
+            
+        Returns:
+            Dict: Scan results
+        """
+        # TODO: Integrate with actual LangGraph orchestrator
+        logger.info(f"Executing scan with orchestrator for {scan_request.repo_url}")
+        
+        # For now, return mock results
+        # In the future, this would call the LangGraph orchestrator
+        import asyncio
+        await asyncio.sleep(5)  # Simulate processing time
+        
+        return {
+            "scan_completed": True,
+            "repository": scan_request.repo_url,
+            "scan_type": scan_request.scan_type.value,
+            "findings_count": 3,
+            "status": "completed"
+        }
+    
+    def get_scan_status_by_scan_id(self, scan_id: str) -> Optional[Dict]:
+        """
+        Get scan status by scan ID.
+        
+        Args:
+            scan_id (str): Scan identifier
+            
+        Returns:
+            Optional[Dict]: Scan status information
+        """
+        return self._task_queue.get_scan_status_by_scan_id(scan_id)
+    
+    def get_task_status(self, job_id: str) -> Optional[Dict]:
+        """
+        Get task status by job ID.
+        
+        Args:
+            job_id (str): Job identifier
+            
+        Returns:
+            Optional[Dict]: Task status information
+        """
+        return self._task_queue.get_task_status(job_id)
     
     def _create_demo_report_detail(self, scan_id: str) -> ReportDetail:
         """

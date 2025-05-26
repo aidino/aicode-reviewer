@@ -14,7 +14,8 @@ from fastapi import FastAPI, status
 from src.webapp.backend.api.scan_routes import router, get_scan_service
 from src.webapp.backend.models.scan_models import (
     ReportDetail, ScanInfo, ScanSummary, StaticAnalysisFinding,
-    LLMReview, DiagramData, ScanMetadata, ScanType, ScanStatus, SeverityLevel
+    LLMReview, DiagramData, ScanMetadata, ScanType, ScanStatus, SeverityLevel,
+    ScanRequest, ScanInitiateResponse
 )
 from src.webapp.backend.services.scan_service import ScanService
 
@@ -38,6 +39,33 @@ def test_client():
 def mock_scan_service():
     """Create mock scan service."""
     return Mock(spec=ScanService)
+
+
+@pytest.fixture
+def sample_scan_request():
+    """Create sample ScanRequest for testing."""
+    return ScanRequest(
+        repo_url="https://github.com/test/repo",
+        scan_type=ScanType.PR,
+        pr_id=123,
+        branch="feature/test",
+        target_branch="main",
+        source_branch="feature/test"
+    )
+
+
+@pytest.fixture
+def sample_scan_initiate_response():
+    """Create sample ScanInitiateResponse for testing."""
+    return ScanInitiateResponse(
+        scan_id="pr_abc123",
+        job_id="job_def456",
+        status=ScanStatus.PENDING,
+        message="Scan initiated successfully. Scan ID: pr_abc123",
+        estimated_duration=300,
+        repository="https://github.com/test/repo",
+        scan_type=ScanType.PR
+    )
 
 
 @pytest.fixture
@@ -211,6 +239,231 @@ class TestGetScanReport:
         # Verify response
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         assert "Internal server error" in response.json()["detail"]
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+
+
+class TestInitiateScan:
+    """Test cases for POST /scans/initiate endpoint."""
+    
+    @pytest.mark.asyncio
+    async def test_initiate_scan_success(self, test_client, mock_scan_service, sample_scan_request, sample_scan_initiate_response):
+        """Test successful scan initiation."""
+        # Setup mock
+        mock_scan_service.initiate_scan.return_value = sample_scan_initiate_response
+        
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Make request
+        response = test_client.post("/scans/initiate", json=sample_scan_request.dict())
+        
+        # Verify response
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["scan_id"] == "pr_abc123"
+        assert data["job_id"] == "job_def456"
+        assert data["status"] == "pending"
+        assert data["repository"] == "https://github.com/test/repo"
+        assert data["scan_type"] == "pr"
+        assert data["estimated_duration"] == 300
+        assert "Scan initiated successfully" in data["message"]
+        
+        # Verify service was called correctly
+        mock_scan_service.initiate_scan.assert_called_once()
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    def test_initiate_scan_empty_repo_url(self, test_client, mock_scan_service):
+        """Test scan initiation with empty repository URL."""
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Create request with empty repo_url
+        request_data = {
+            "repo_url": "",
+            "scan_type": "pr",
+            "pr_id": 123
+        }
+        
+        # Make request
+        response = test_client.post("/scans/initiate", json=request_data)
+        
+        # Verify response
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Repository URL cannot be empty" in response.json()["detail"]
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    def test_initiate_scan_pr_without_pr_id(self, test_client, mock_scan_service):
+        """Test PR scan initiation without PR ID."""
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Create PR scan request without pr_id
+        request_data = {
+            "repo_url": "https://github.com/test/repo",
+            "scan_type": "pr"
+        }
+        
+        # Make request
+        response = test_client.post("/scans/initiate", json=request_data)
+        
+        # Verify response
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "PR ID is required for PR scans" in response.json()["detail"]
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    @pytest.mark.asyncio
+    async def test_initiate_scan_project_type(self, test_client, mock_scan_service):
+        """Test project scan initiation."""
+        # Setup mock response for project scan
+        project_response = ScanInitiateResponse(
+            scan_id="project_xyz789",
+            job_id="job_abc123",
+            status=ScanStatus.PENDING,
+            message="Project scan initiated successfully",
+            estimated_duration=900,
+            repository="https://github.com/test/large-repo",
+            scan_type=ScanType.PROJECT
+        )
+        mock_scan_service.initiate_scan.return_value = project_response
+        
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Create project scan request
+        request_data = {
+            "repo_url": "https://github.com/test/large-repo",
+            "scan_type": "project",
+            "branch": "main"
+        }
+        
+        # Make request
+        response = test_client.post("/scans/initiate", json=request_data)
+        
+        # Verify response
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["scan_id"] == "project_xyz789"
+        assert data["scan_type"] == "project"
+        assert data["estimated_duration"] == 900
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    @pytest.mark.asyncio
+    async def test_initiate_scan_service_error(self, test_client, mock_scan_service, sample_scan_request):
+        """Test scan initiation with service error."""
+        # Setup mock to raise exception
+        mock_scan_service.initiate_scan.side_effect = Exception("Service error")
+        
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Make request
+        response = test_client.post("/scans/initiate", json=sample_scan_request.dict())
+        
+        # Verify response
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "Internal server error while initiating scan" in response.json()["detail"]
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    def test_initiate_scan_invalid_json(self, test_client, mock_scan_service):
+        """Test scan initiation with invalid JSON."""
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Make request with invalid data
+        response = test_client.post("/scans/initiate", json={"invalid": "data"})
+        
+        # Verify response (FastAPI validation error)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+
+
+class TestGetJobStatus:
+    """Test cases for GET /scans/jobs/{job_id}/status endpoint."""
+    
+    def test_get_job_status_success(self, test_client, mock_scan_service):
+        """Test successful job status retrieval."""
+        # Setup mock response
+        mock_task_status = {
+            "job_id": "job_abc123",
+            "scan_id": "pr_def456",
+            "status": "running",
+            "progress": 50,
+            "created_at": "2025-01-28T10:00:00",
+            "started_at": "2025-01-28T10:01:00",
+            "repository": "https://github.com/test/repo",
+            "scan_type": "pr"
+        }
+        mock_scan_service.get_task_status.return_value = mock_task_status
+        
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Make request
+        response = test_client.get("/scans/jobs/job_abc123/status")
+        
+        # Verify response
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["job_id"] == "job_abc123"
+        assert data["scan_id"] == "pr_def456"
+        assert data["status"] == "running"
+        assert data["progress"] == 50
+        
+        # Verify service was called correctly
+        mock_scan_service.get_task_status.assert_called_once_with("job_abc123")
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    def test_get_job_status_not_found(self, test_client, mock_scan_service):
+        """Test job status not found."""
+        # Setup mock to return None
+        mock_scan_service.get_task_status.return_value = None
+        
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Make request
+        response = test_client.get("/scans/jobs/nonexistent_job/status")
+        
+        # Verify response
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "Job not found" in response.json()["detail"]
+        
+        # Clean up
+        test_client.app.dependency_overrides.clear()
+    
+    def test_get_job_status_service_error(self, test_client, mock_scan_service):
+        """Test job status with service error."""
+        # Setup mock to raise exception
+        mock_scan_service.get_task_status.side_effect = Exception("Service error")
+        
+        # Override dependency
+        test_client.app.dependency_overrides[get_scan_service] = lambda: mock_scan_service
+        
+        # Make request
+        response = test_client.get("/scans/jobs/job_abc123/status")
+        
+        # Verify response
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "Internal server error while retrieving job status" in response.json()["detail"]
         
         # Clean up
         test_client.app.dependency_overrides.clear()

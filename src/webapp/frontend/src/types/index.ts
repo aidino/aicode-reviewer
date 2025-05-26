@@ -100,6 +100,16 @@ export interface ScanResponse {
   message: string;
 }
 
+export interface ScanInitiateResponse {
+  scan_id: string;
+  job_id: string;
+  status: ScanStatus;
+  message: string;
+  estimated_duration?: number;
+  repository: string;
+  scan_type: ScanType;
+}
+
 export interface ApiError {
   detail: string;
   status_code: number;

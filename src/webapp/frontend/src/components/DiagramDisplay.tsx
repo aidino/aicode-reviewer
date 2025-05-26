@@ -1,17 +1,21 @@
 /**
- * DiagramDisplay component for rendering PlantUML and Mermaid diagrams.
+ * DiagramDisplay component for rendering PlantUML and Mermaid diagrams with interactive features.
  * 
  * This component accepts diagram content and renders it using appropriate
- * libraries based on the diagram format.
+ * libraries based on the diagram format. It includes zoom, pan, and other
+ * interactive features for better diagram exploration.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { DiagramData } from '../types';
 
 interface DiagramDisplayProps {
   diagram: DiagramData;
   className?: string;
   style?: React.CSSProperties;
+  enableInteraction?: boolean;
+  showControls?: boolean;
 }
 
 interface DiagramDisplayState {
@@ -21,20 +25,24 @@ interface DiagramDisplayState {
 }
 
 /**
- * Component to display diagrams from PlantUML or Mermaid content.
+ * Component to display diagrams from PlantUML or Mermaid content with interactive features.
  * 
  * Args:
  *   diagram: Diagram data containing content and format information
  *   className: Additional CSS classes
  *   style: Inline styles
+ *   enableInteraction: Whether to enable zoom/pan interactions (default: true)
+ *   showControls: Whether to show zoom controls (default: true)
  * 
  * Returns:
- *   JSX.Element: Rendered diagram component
+ *   JSX.Element: Rendered diagram component with interactive features
  */
 const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
   diagram,
   className = '',
   style = {},
+  enableInteraction = true,
+  showControls = true,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<DiagramDisplayState>({
@@ -58,6 +66,15 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
           useMaxWidth: true,
           htmlLabels: true,
         },
+        sequence: {
+          useMaxWidth: true,
+          actorMargin: 50,
+          boxMargin: 10,
+          boxTextMargin: 5,
+        },
+        class: {
+          useMaxWidth: true,
+        },
       });
 
       if (containerRef.current) {
@@ -70,11 +87,18 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
         // Create element for mermaid to render into
         const element = document.createElement('div');
         element.id = id;
+        element.style.width = '100%';
+        element.style.height = 'auto';
         containerRef.current.appendChild(element);
 
         // Render the diagram
         const { svg } = await mermaid.default.render(id, content);
         element.innerHTML = svg;
+        
+        // Add click handlers for interactive elements if needed
+        if (enableInteraction) {
+          addDiagramInteractivity(element);
+        }
         
         setState({
           loading: false,
@@ -112,8 +136,15 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
         img.alt = 'PlantUML Diagram';
         img.style.maxWidth = '100%';
         img.style.height = 'auto';
+        img.style.display = 'block';
+        img.style.margin = '0 auto';
         
         img.onload = () => {
+          // Add interactive features if enabled
+          if (enableInteraction) {
+            addDiagramInteractivity(containerRef.current!);
+          }
+          
           setState({
             loading: false,
             error: null,
@@ -139,6 +170,29 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
         rendered: false,
       });
     }
+  };
+
+  // Function to add interactivity to diagram elements
+  const addDiagramInteractivity = (element: HTMLElement) => {
+    // Add hover effects to diagram elements
+    const svgElements = element.querySelectorAll('g, rect, circle, path');
+    svgElements.forEach((el) => {
+      el.addEventListener('mouseenter', () => {
+        (el as HTMLElement).style.opacity = '0.8';
+        (el as HTMLElement).style.cursor = 'pointer';
+      });
+      
+      el.addEventListener('mouseleave', () => {
+        (el as HTMLElement).style.opacity = '1';
+      });
+      
+      // Add click handlers for potential future features
+      el.addEventListener('click', (event) => {
+        event.stopPropagation();
+        console.log('Diagram element clicked:', el);
+        // TODO: Add click-to-code navigation in future iterations
+      });
+    });
   };
 
   // Function to encode PlantUML content for the server
@@ -200,7 +254,40 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
     else {
       renderMermaid(diagram.diagram_content);
     }
-  }, [diagram]);
+  }, [diagram, enableInteraction]);
+
+  // Render controls for diagram interaction
+  const renderControls = () => {
+    if (!showControls || !state.rendered) return null;
+    
+    return (
+      <div style={{
+        position: 'absolute',
+        top: '8px',
+        right: '8px',
+        display: 'flex',
+        gap: '4px',
+        zIndex: 10,
+      }}>
+        <button
+          style={{
+            padding: '4px 8px',
+            fontSize: '12px',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            backgroundColor: 'white',
+            cursor: 'pointer',
+          }}
+          onClick={() => {
+            // Will be handled by TransformWrapper
+          }}
+          title="Reset zoom"
+        >
+          Reset
+        </button>
+      </div>
+    );
+  };
 
   // Render loading state
   if (state.loading) {
@@ -254,8 +341,8 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
     );
   }
 
-  // Render diagram
-  return (
+  // Render diagram with or without interactive wrapper
+  const diagramContent = (
     <div 
       className={`diagram-display diagram-rendered ${className}`}
       data-testid="diagram-display"
@@ -264,9 +351,11 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
         borderRadius: '4px',
         padding: '16px',
         textAlign: 'center',
+        position: 'relative',
         ...style,
       }}
     >
+      {renderControls()}
       <div 
         ref={containerRef}
         data-testid="diagram-container"
@@ -287,6 +376,105 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
       )}
     </div>
   );
+
+  // Wrap with interactive features if enabled
+  if (enableInteraction && state.rendered) {
+    return (
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.1}
+        maxScale={5}
+        centerOnInit={true}
+        limitToBounds={false}
+        doubleClick={{
+          disabled: false,
+          mode: 'zoomIn',
+          step: 0.7,
+        }}
+        wheel={{
+          step: 0.1,
+        }}
+      >
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            <div style={{ position: 'relative' }}>
+              {showControls && (
+                <div style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  display: 'flex',
+                  gap: '4px',
+                  zIndex: 10,
+                }}>
+                  <button
+                    onClick={() => zoomIn()}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '14px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                    title="Zoom In"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={() => zoomOut()}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '14px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                    title="Zoom Out"
+                  >
+                    -
+                  </button>
+                  <button
+                    onClick={() => resetTransform()}
+                    style={{
+                      padding: '6px 8px',
+                      fontSize: '12px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      backgroundColor: 'white',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    }}
+                    title="Reset Zoom"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
+              <TransformComponent
+                wrapperStyle={{
+                  width: '100%',
+                  height: '100%',
+                }}
+                contentStyle={{
+                  width: '100%',
+                  height: '100%',
+                }}
+              >
+                {diagramContent}
+              </TransformComponent>
+            </div>
+          </>
+        )}
+      </TransformWrapper>
+    );
+  }
+
+  // Return non-interactive diagram
+  return diagramContent;
 };
 
 export default DiagramDisplay; 

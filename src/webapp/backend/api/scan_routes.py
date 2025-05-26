@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import JSONResponse
 
 from src.webapp.backend.models.scan_models import (
-    ReportDetail, ScanRequest, ScanResponse, ScanListItem, ScanStatus
+    ReportDetail, ScanRequest, ScanResponse, ScanListItem, ScanStatus, ScanInitiateResponse
 )
 from src.webapp.backend.services.scan_service import ScanService
 
@@ -92,6 +92,65 @@ async def get_scan_report(
         )
 
 
+@router.post("/initiate", response_model=ScanInitiateResponse)
+async def initiate_scan(
+    scan_request: ScanRequest,
+    scan_service: ScanService = Depends(get_scan_service)
+) -> ScanInitiateResponse:
+    """
+    Initiate a new code scan asynchronously.
+    
+    This endpoint accepts a scan request and starts the scan process in the background.
+    It returns immediately with a scan ID and job ID that can be used to track progress.
+    
+    Args:
+        scan_request (ScanRequest): Scan configuration including repository URL, type, and parameters
+        scan_service (ScanService): Injected scan service dependency
+        
+    Returns:
+        ScanInitiateResponse: Response with scan ID, job ID, and initial status
+        
+    Raises:
+        HTTPException: 400 for validation errors, 500 for internal errors
+    """
+    logger.info(f"POST /scans/initiate - Initiating scan for {scan_request.repo_url}")
+    
+    try:
+        # Validate scan request
+        if not scan_request.repo_url or not scan_request.repo_url.strip():
+            logger.warning("Empty repository URL provided")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Repository URL cannot be empty"
+            )
+        
+        # Validate PR ID for PR scans
+        if scan_request.scan_type.value == "pr" and not scan_request.pr_id:
+            logger.warning("PR scan requested but no PR ID provided")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="PR ID is required for PR scans"
+            )
+        
+        # Initiate the scan asynchronously
+        response = await scan_service.initiate_scan(scan_request)
+        
+        logger.info(f"Successfully initiated scan: {response.scan_id}")
+        logger.debug(f"Scan details: repository={response.repository}, type={response.scan_type}, job_id={response.job_id}")
+        
+        return response
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Error initiating scan for {scan_request.repo_url}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while initiating scan"
+        )
+
+
 @router.get("/{scan_id}/status")
 async def get_scan_status(
     scan_id: str,
@@ -100,18 +159,40 @@ async def get_scan_status(
     """
     Get the current status of a scan.
     
+    This endpoint checks both active task queue and completed scan reports
+    to provide comprehensive status information.
+    
     Args:
         scan_id (str): Unique identifier for the scan
         scan_service (ScanService): Injected scan service dependency
         
     Returns:
-        JSONResponse: Scan status information
+        JSONResponse: Scan status information including progress if available
     """
     logger.info(f"GET /scans/{scan_id}/status - Checking scan status")
     
     try:
-        # For now, use the report to determine status
-        # TODO: Implement dedicated status tracking
+        # First check if scan is in progress via task queue
+        task_status = scan_service.get_scan_status_by_scan_id(scan_id)
+        
+        if task_status:
+            # Scan is in progress or recently completed
+            logger.debug(f"Found task status for scan {scan_id}: {task_status['status']}")
+            return JSONResponse(content={
+                "scan_id": scan_id,
+                "status": task_status["status"],
+                "progress": task_status.get("progress", 0),
+                "duration_seconds": task_status.get("duration_seconds"),
+                "error_message": task_status.get("error_message"),
+                "repository": task_status["repository"],
+                "scan_type": task_status["scan_type"],
+                "created_at": task_status["created_at"],
+                "started_at": task_status.get("started_at"),
+                "completed_at": task_status.get("completed_at"),
+                "is_active_task": True
+            })
+        
+        # If not in task queue, check for completed report
         report = scan_service.get_scan_report(scan_id)
         
         if report is None:
@@ -120,13 +201,17 @@ async def get_scan_status(
                 detail=f"Scan not found for scan ID: {scan_id}"
             )
         
+        # Return completed scan status from report
         return JSONResponse(content={
             "scan_id": scan_id,
             "status": report.summary.scan_status.value,
             "total_findings": report.summary.total_findings,
             "has_llm_analysis": report.summary.has_llm_analysis,
             "timestamp": report.scan_info.timestamp.isoformat(),
-            "repository": report.scan_info.repository
+            "repository": report.scan_info.repository,
+            "scan_type": report.scan_info.scan_type.value,
+            "progress": 100,  # Completed scans are 100% done
+            "is_active_task": False
         })
         
     except HTTPException:
@@ -136,6 +221,48 @@ async def get_scan_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while retrieving scan status"
+        )
+
+
+@router.get("/jobs/{job_id}/status")
+async def get_job_status(
+    job_id: str,
+    scan_service: ScanService = Depends(get_scan_service)
+) -> JSONResponse:
+    """
+    Get the current status of a background job.
+    
+    This endpoint provides detailed task status information including progress,
+    timing, and error details for background scan jobs.
+    
+    Args:
+        job_id (str): Unique identifier for the background job
+        scan_service (ScanService): Injected scan service dependency
+        
+    Returns:
+        JSONResponse: Job status information with progress details
+    """
+    logger.info(f"GET /scans/jobs/{job_id}/status - Checking job status")
+    
+    try:
+        task_status = scan_service.get_task_status(job_id)
+        
+        if task_status is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job not found for job ID: {job_id}"
+            )
+        
+        logger.debug(f"Found job status: {task_status['status']}")
+        return JSONResponse(content=task_status)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting job status for {job_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while retrieving job status"
         )
 
 

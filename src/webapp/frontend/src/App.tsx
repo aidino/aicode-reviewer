@@ -9,6 +9,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ScanList from './pages/ScanList';
 import ReportView from './pages/ReportView';
+import CreateScan from './pages/CreateScan';
 
 // Global styles
 const globalStyles = `
@@ -83,7 +84,7 @@ const Header: React.FC = () => {
             Multi-Agent Code Analysis Platform
           </div>
         </div>
-        <nav>
+        <nav style={{ display: 'flex', gap: '12px' }}>
           <a
             href="/scans"
             style={{
@@ -102,6 +103,26 @@ const Header: React.FC = () => {
             }}
           >
             View Scans
+          </a>
+          <a
+            href="/create-scan"
+            style={{
+              color: 'white',
+              textDecoration: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              transition: 'background-color 0.2s',
+              fontWeight: '500',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)';
+            }}
+          >
+            New Scan
           </a>
         </nav>
       </div>
@@ -240,6 +261,16 @@ const App: React.FC<AppProps> = ({ className = '' }) => {
             element={
               <Layout>
                 <ScanList />
+              </Layout>
+            } 
+          />
+          
+          {/* Create scan route */}
+          <Route 
+            path="/create-scan" 
+            element={
+              <Layout>
+                <CreateScan />
               </Layout>
             } 
           />

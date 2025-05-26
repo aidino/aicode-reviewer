@@ -137,4 +137,15 @@ class ScanResponse(BaseModel):
     scan_id: str = Field(..., description="Unique identifier for the initiated scan")
     status: ScanStatus = Field(..., description="Initial scan status")
     message: str = Field(..., description="Response message")
-    estimated_duration: Optional[int] = Field(default=None, description="Estimated duration in seconds") 
+    estimated_duration: Optional[int] = Field(default=None, description="Estimated duration in seconds")
+
+
+class ScanInitiateResponse(BaseModel):
+    """Model for response when initiating a new scan."""
+    scan_id: str = Field(..., description="Unique identifier for the initiated scan")
+    job_id: str = Field(..., description="Unique identifier for the background job")
+    status: ScanStatus = Field(..., description="Initial scan status")
+    message: str = Field(..., description="Response message")
+    estimated_duration: Optional[int] = Field(default=None, description="Estimated duration in seconds")
+    repository: str = Field(..., description="Repository URL being scanned")
+    scan_type: ScanType = Field(..., description="Type of scan being performed") 
