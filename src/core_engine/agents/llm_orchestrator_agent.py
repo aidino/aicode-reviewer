@@ -3,13 +3,24 @@ LLMOrchestratorAgent for AI Code Review System.
 
 This module implements the LLMOrchestratorAgent responsible for managing
 interactions with Large Language Models (LLMs) for semantic code analysis.
-Currently supports mock LLM behavior with plans for real LLM integration.
+Supports mock LLM behavior, OpenAI GPT models, and Google Gemini models.
 """
 
 import logging
 import json
+import os
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+
+try:
+    from langchain_openai import ChatOpenAI
+except ImportError:
+    ChatOpenAI = None
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+except ImportError:
+    ChatGoogleGenerativeAI = None
 
 from .rag_context_agent import RAGContextAgent
 
@@ -35,7 +46,7 @@ class LLMOrchestratorAgent:
         Initialize the LLMOrchestratorAgent.
         
         Args:
-            llm_provider (str): LLM provider type ('mock', 'openai', 'local', etc.)
+            llm_provider (str): LLM provider type ('mock', 'openai', 'google_gemini', 'local', etc.)
             api_key (str): API key for commercial LLM providers (if needed)
             model_name (str): Specific model name to use
             use_rag (bool): Whether to use RAG for context enhancement
@@ -43,11 +54,14 @@ class LLMOrchestratorAgent:
         self.llm_provider = llm_provider
         self.api_key = api_key
         self.model_name = model_name
-        self.supported_providers = ['mock', 'openai', 'local', 'anthropic', 'google']
+        self.supported_providers = ['mock', 'openai', 'google_gemini', 'local', 'anthropic', 'google']
         
         # Initialize RAG context agent if enabled
         self.use_rag = use_rag
         self.rag_agent = RAGContextAgent() if use_rag else None
+        
+        # Initialize LLM instance
+        self.llm_instance = None
         
         # Initialize provider-specific configurations
         self._initialize_provider()
@@ -71,11 +85,28 @@ class LLMOrchestratorAgent:
             logger.info("Initialized mock LLM provider for testing")
             
         elif self.llm_provider == 'openai':
-            # OpenAI provider setup (placeholder for future implementation)
-            if not self.api_key:
+            # OpenAI provider setup
+            if ChatOpenAI is None:
+                raise ImportError("langchain-openai is required for OpenAI provider. Install with: pip install langchain-openai")
+            
+            # Get API key from parameter or environment variable
+            api_key = self.api_key or os.getenv('OPENAI_API_KEY')
+            if not api_key:
                 logger.warning("OpenAI API key not provided. LLM calls will fail.")
+                
             self.model_name = self.model_name or 'gpt-4'
-            logger.info(f"Initialized OpenAI provider with model: {self.model_name}")
+            
+            # Initialize OpenAI LLM instance
+            try:
+                self.llm_instance = ChatOpenAI(
+                    model=self.model_name,
+                    api_key=api_key,
+                    temperature=0.1  # Lower temperature for more consistent code analysis
+                )
+                logger.info(f"Initialized OpenAI provider with model: {self.model_name}")
+            except Exception as e:
+                logger.error(f"Failed to initialize OpenAI LLM: {str(e)}")
+                self.llm_instance = None
             
         elif self.llm_provider == 'local':
             # Local model setup (placeholder for future implementation)
@@ -89,12 +120,35 @@ class LLMOrchestratorAgent:
             self.model_name = self.model_name or 'claude-3-sonnet'
             logger.info(f"Initialized Anthropic provider with model: {self.model_name}")
             
-        elif self.llm_provider == 'google':
-            # Google Gemini setup (placeholder for future implementation)
-            if not self.api_key:
+        elif self.llm_provider == 'google_gemini':
+            # Google Gemini provider setup
+            if ChatGoogleGenerativeAI is None:
+                raise ImportError("langchain-google-genai is required for Google Gemini provider. Install with: pip install langchain-google-genai")
+            
+            # Get API key from parameter or environment variable
+            api_key = self.api_key or os.getenv('GOOGLE_API_KEY')
+            if not api_key:
                 logger.warning("Google API key not provided. LLM calls will fail.")
+                
             self.model_name = self.model_name or 'gemini-pro'
-            logger.info(f"Initialized Google provider with model: {self.model_name}")
+            
+            # Initialize Google Gemini LLM instance
+            try:
+                self.llm_instance = ChatGoogleGenerativeAI(
+                    model=self.model_name,
+                    google_api_key=api_key,
+                    temperature=0.1  # Lower temperature for more consistent code analysis
+                )
+                logger.info(f"Initialized Google Gemini provider with model: {self.model_name}")
+            except Exception as e:
+                logger.error(f"Failed to initialize Google Gemini LLM: {str(e)}")
+                self.llm_instance = None
+        
+        elif self.llm_provider == 'google':
+            # Legacy Google provider name - redirect to google_gemini
+            logger.warning("Provider 'google' is deprecated. Use 'google_gemini' instead.")
+            self.llm_provider = 'google_gemini'
+            self._initialize_provider()  # Re-initialize with correct provider
     
     def _construct_analysis_prompt(self, prompt: str, code_snippet: str = None, 
                                  static_findings: List[Dict] = None,
@@ -344,8 +398,24 @@ Please format your response in clear sections and provide specific, actionable f
                     rag_context=rag_context
                 )
             
-            # TODO: Implement real LLM provider calls here
-            raise NotImplementedError(f"LLM provider {self.llm_provider} not yet implemented")
+            # For real LLM providers, use the LangChain instance
+            if self.llm_instance is None:
+                logger.error(f"LLM instance not initialized for provider: {self.llm_provider}")
+                return f"Error: LLM instance not available for provider {self.llm_provider}"
+            
+            try:
+                # Use LangChain LLM instance to invoke the model
+                response = self.llm_instance.invoke(full_prompt)
+                
+                # Extract content from response
+                if hasattr(response, 'content'):
+                    return response.content
+                else:
+                    return str(response)
+                    
+            except Exception as e:
+                logger.error(f"Error calling {self.llm_provider} API: {str(e)}")
+                return f"Error calling {self.llm_provider} API: {str(e)}"
             
         except Exception as e:
             logger.error(f"Error invoking LLM: {str(e)}")
@@ -431,8 +501,8 @@ Please format your response in clear sections and provide specific, actionable f
         """
         if self.llm_provider == 'mock':
             return True
-        elif self.llm_provider in ['openai', 'anthropic', 'google']:
-            return self.api_key is not None
+        elif self.llm_provider in ['openai', 'anthropic', 'google_gemini']:
+            return self.api_key is not None or self.llm_instance is not None
         elif self.llm_provider == 'local':
             # TODO: Add actual local model availability check
             return True

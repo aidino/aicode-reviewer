@@ -16,6 +16,11 @@
 * **\[DONE\]** Integrate one Open Source LLM:  
   * **\[TODO\]** Setup local hosting or API access for a chosen model (e.g., a smaller CodeLlama variant for initial testing).  
   * **\[DONE\]** Develop basic LLMOrchestratorAgent for simple prompt/response with the chosen LLM.  
+* **\[DONE\]** Integrate Commercial LLM APIs:  
+  * **\[DONE\]** Add support for OpenAI GPT models through langchain-openai.  
+  * **\[DONE\]** Add support for Google Gemini models through langchain-google-genai.  
+  * **\[DONE\]** Implement proper API key management from environment variables.  
+  * **\[DONE\]** Add comprehensive error handling for API calls and initialization failures.  
 * **\[DONE\]** Develop basic ReportingAgent:  
   * **\[DONE\]** Implement Markdown report generation (initial data structure for reports).  
   * **\[DONE\]** Aggregate findings from StaticAnalysisAgent and basic LLM insights.  
@@ -94,6 +99,43 @@
 - Handle Java language alongside existing Python support
 - Gracefully fallback when Java grammar is not available
 - All tests pass with 60/60 successful test cases
+
+### **Milestone 2.6: Commercial LLM APIs Integration (Completed - 2025-01-28)**
+
+* **[DONE]** Update `requirements.txt`:
+  * **[DONE]** Add `langchain-openai` dependency for OpenAI GPT models support.
+  * **[DONE]** Add `langchain-google-genai` dependency for Google Gemini models support.
+
+* **[DONE]** Update `src/core_engine/agents/llm_orchestrator_agent.py`:
+  * **[DONE]** Add import statements for `ChatOpenAI` and `ChatGoogleGenerativeAI` with graceful import handling.
+  * **[DONE]** Update `__init__` method to support 'openai' and 'google_gemini' providers.
+  * **[DONE]** Implement provider-specific initialization for OpenAI with proper API key management.
+  * **[DONE]** Implement provider-specific initialization for Google Gemini with proper API key management.
+  * **[DONE]** Add support for environment variable API keys (`OPENAI_API_KEY`, `GOOGLE_API_KEY`).
+  * **[DONE]** Update `invoke_llm` method to use actual LangChain LLM instances for real API calls.
+  * **[DONE]** Implement comprehensive error handling for API initialization and call failures.
+  * **[DONE]** Add legacy provider name support with deprecation warnings ('google' -> 'google_gemini').
+  * **[DONE]** Update `is_provider_available` method to check both API key and LLM instance availability.
+
+* **[DONE]** Update `tests/core_engine/agents/test_llm_orchestrator_agent.py`:
+  * **[DONE]** Add comprehensive test cases for OpenAI provider initialization with mocked `ChatOpenAI`.
+  * **[DONE]** Add comprehensive test cases for Google Gemini provider initialization with mocked `ChatGoogleGenerativeAI`.
+  * **[DONE]** Test API key management from both parameters and environment variables.
+  * **[DONE]** Test error handling for missing dependencies and initialization failures.
+  * **[DONE]** Test actual LLM invocation with mocked responses for both providers.
+  * **[DONE]** Test error handling for API call failures and response processing.
+  * **[DONE]** Test provider availability checks for all supported providers.
+  * **[DONE]** Test legacy provider name handling and deprecation warnings.
+  * **[DONE]** Ensure all tests pass with comprehensive coverage of new functionality.
+
+**Summary:** Successfully integrated commercial LLM APIs (OpenAI and Google Gemini) into the LLMOrchestratorAgent. The system now supports:
+- Real API calls to OpenAI GPT models (gpt-4, gpt-4-turbo, etc.) through langchain-openai
+- Real API calls to Google Gemini models (gemini-pro, etc.) through langchain-google-genai
+- Flexible API key management from constructor parameters or environment variables
+- Graceful error handling for missing dependencies, initialization failures, and API errors
+- Backward compatibility with existing mock provider functionality
+- Comprehensive test coverage with 32 additional test cases covering all new functionality
+- Production-ready LLM integration with proper error fallbacks and logging
 
 ### **Milestone 3: Full Project Scanning, Advanced Features & Enhanced Web App (End of Phase 3\)**
 

@@ -1,6 +1,8 @@
 # Core LangChain and LangGraph for orchestration
 langchain
 langgraph
+langchain-openai
+langchain-google-genai
 
 # Additional dependencies for LangGraph
 pydantic

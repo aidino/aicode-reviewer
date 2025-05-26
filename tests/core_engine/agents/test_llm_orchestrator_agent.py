@@ -2,10 +2,12 @@
 Unit tests for LLMOrchestratorAgent.
 
 This module contains comprehensive tests for the LLMOrchestratorAgent class,
-including tests for mock LLM behavior, prompt construction, and error handling.
+including tests for mock LLM behavior, OpenAI integration, Google Gemini integration,
+prompt construction, and error handling.
 """
 
 import pytest
+import os
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
@@ -64,22 +66,157 @@ class TestLLMOrchestratorAgent:
         assert agent.model_name == 'claude-3-opus'
         assert agent.api_key == 'test-key'
     
-    def test_init_google_provider(self):
-        """Test initialization with Google provider."""
+    def test_init_google_gemini_provider(self):
+        """Test initialization with Google Gemini provider."""
         agent = LLMOrchestratorAgent(
-            llm_provider='google', 
+            llm_provider='google_gemini', 
             api_key='test-key', 
             model_name='gemini-pro-vision'
         )
         
-        assert agent.llm_provider == 'google'
+        assert agent.llm_provider == 'google_gemini'
         assert agent.model_name == 'gemini-pro-vision'
         assert agent.api_key == 'test-key'
+    
+    def test_init_legacy_google_provider(self):
+        """Test initialization with legacy Google provider name."""
+        with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            agent = LLMOrchestratorAgent(
+                llm_provider='google', 
+                api_key='test-key'
+            )
+            
+            assert agent.llm_provider == 'google_gemini'
+            mock_logger.warning.assert_called_with("Provider 'google' is deprecated. Use 'google_gemini' instead.")
     
     def test_init_unsupported_provider(self):
         """Test initialization with unsupported provider."""
         with pytest.raises(ValueError, match="Unsupported LLM provider: invalid"):
             LLMOrchestratorAgent(llm_provider='invalid')
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_init_openai_with_mock_instance(self, mock_chat_openai):
+        """Test initialization with OpenAI provider using mocked ChatOpenAI."""
+        mock_llm_instance = Mock()
+        mock_chat_openai.return_value = mock_llm_instance
+        
+        agent = LLMOrchestratorAgent(
+            llm_provider='openai', 
+            api_key='test-key',
+            model_name='gpt-4-turbo'
+        )
+        
+        assert agent.llm_provider == 'openai'
+        assert agent.model_name == 'gpt-4-turbo'
+        assert agent.api_key == 'test-key'
+        assert agent.llm_instance == mock_llm_instance
+        
+        # Verify ChatOpenAI was called with correct parameters
+        mock_chat_openai.assert_called_once_with(
+            model='gpt-4-turbo',
+            api_key='test-key',
+            temperature=0.1
+        )
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_init_google_gemini_with_mock_instance(self, mock_chat_google):
+        """Test initialization with Google Gemini provider using mocked ChatGoogleGenerativeAI."""
+        mock_llm_instance = Mock()
+        mock_chat_google.return_value = mock_llm_instance
+        
+        agent = LLMOrchestratorAgent(
+            llm_provider='google_gemini', 
+            api_key='test-key',
+            model_name='gemini-pro'
+        )
+        
+        assert agent.llm_provider == 'google_gemini'
+        assert agent.model_name == 'gemini-pro'
+        assert agent.api_key == 'test-key'
+        assert agent.llm_instance == mock_llm_instance
+        
+        # Verify ChatGoogleGenerativeAI was called with correct parameters
+        mock_chat_google.assert_called_once_with(
+            model='gemini-pro',
+            google_api_key='test-key',
+            temperature=0.1
+        )
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI', None)
+    def test_init_openai_missing_dependency(self):
+        """Test initialization with OpenAI provider when langchain-openai is not installed."""
+        with pytest.raises(ImportError, match="langchain-openai is required for OpenAI provider"):
+            LLMOrchestratorAgent(llm_provider='openai', api_key='test-key')
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI', None)
+    def test_init_google_gemini_missing_dependency(self):
+        """Test initialization with Google Gemini provider when langchain-google-genai is not installed."""
+        with pytest.raises(ImportError, match="langchain-google-genai is required for Google Gemini provider"):
+            LLMOrchestratorAgent(llm_provider='google_gemini', api_key='test-key')
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_init_openai_with_env_var(self, mock_chat_openai):
+        """Test initialization with OpenAI provider using environment variable for API key."""
+        mock_llm_instance = Mock()
+        mock_chat_openai.return_value = mock_llm_instance
+        
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'env-api-key'}):
+            agent = LLMOrchestratorAgent(llm_provider='openai')
+            
+            assert agent.llm_provider == 'openai'
+            assert agent.model_name == 'gpt-4'
+            assert agent.llm_instance == mock_llm_instance
+            
+            # Verify ChatOpenAI was called with env API key
+            mock_chat_openai.assert_called_once_with(
+                model='gpt-4',
+                api_key='env-api-key',
+                temperature=0.1
+            )
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_init_google_gemini_with_env_var(self, mock_chat_google):
+        """Test initialization with Google Gemini provider using environment variable for API key."""
+        mock_llm_instance = Mock()
+        mock_chat_google.return_value = mock_llm_instance
+        
+        with patch.dict(os.environ, {'GOOGLE_API_KEY': 'env-api-key'}):
+            agent = LLMOrchestratorAgent(llm_provider='google_gemini')
+            
+            assert agent.llm_provider == 'google_gemini'
+            assert agent.model_name == 'gemini-pro'
+            assert agent.llm_instance == mock_llm_instance
+            
+            # Verify ChatGoogleGenerativeAI was called with env API key
+            mock_chat_google.assert_called_once_with(
+                model='gemini-pro',
+                google_api_key='env-api-key',
+                temperature=0.1
+            )
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_init_openai_initialization_error(self, mock_chat_openai):
+        """Test initialization with OpenAI provider when ChatOpenAI initialization fails."""
+        mock_chat_openai.side_effect = Exception("API initialization failed")
+        
+        with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            agent = LLMOrchestratorAgent(llm_provider='openai', api_key='test-key')
+            
+            assert agent.llm_provider == 'openai'
+            assert agent.llm_instance is None
+            mock_logger.error.assert_called_with("Failed to initialize OpenAI LLM: API initialization failed")
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_init_google_gemini_initialization_error(self, mock_chat_google):
+        """Test initialization with Google Gemini provider when ChatGoogleGenerativeAI initialization fails."""
+        mock_chat_google.side_effect = Exception("API initialization failed")
+        
+        with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            agent = LLMOrchestratorAgent(llm_provider='google_gemini', api_key='test-key')
+            
+            assert agent.llm_provider == 'google_gemini'
+            assert agent.llm_instance is None
+            mock_logger.error.assert_called_with("Failed to initialize Google Gemini LLM: API initialization failed")
     
     def test_construct_analysis_prompt_basic(self):
         """Test basic prompt construction."""
@@ -236,53 +373,160 @@ class TestLLMOrchestratorAgent:
         assert "well-organized" in response  # Should mention code structure
         assert "Logging Issue" in response  # Should address findings
     
-    def test_invoke_llm_openai_fallback(self):
-        """Test LLM invocation with OpenAI provider falls back to mock."""
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_invoke_llm_openai_with_llm_instance(self, mock_chat_openai):
+        """Test LLM invocation with OpenAI provider using actual LLM instance."""
+        # Setup mock LLM instance and response
+        mock_llm_instance = Mock()
+        mock_response = Mock()
+        mock_response.content = "This is OpenAI's analysis of the code."
+        mock_llm_instance.invoke.return_value = mock_response
+        mock_chat_openai.return_value = mock_llm_instance
+        
+        agent = LLMOrchestratorAgent(llm_provider='openai', api_key='test-key')
+        
+        response = agent.invoke_llm("Analyze this code", "def test(): pass")
+        
+        assert response == "This is OpenAI's analysis of the code."
+        assert mock_llm_instance.invoke.call_count == 1
+        
+        # Verify the prompt was constructed properly
+        call_args = mock_llm_instance.invoke.call_args[0][0]
+        assert "# Code Review Analysis Request" in call_args
+        assert "Analyze this code" in call_args
+        assert "def test(): pass" in call_args
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_invoke_llm_google_gemini_with_llm_instance(self, mock_chat_google):
+        """Test LLM invocation with Google Gemini provider using actual LLM instance."""
+        # Setup mock LLM instance and response
+        mock_llm_instance = Mock()
+        mock_response = Mock()
+        mock_response.content = "This is Google Gemini's analysis of the code."
+        mock_llm_instance.invoke.return_value = mock_response
+        mock_chat_google.return_value = mock_llm_instance
+        
+        agent = LLMOrchestratorAgent(llm_provider='google_gemini', api_key='test-key')
+        
+        response = agent.invoke_llm("Review this function", "def hello(): print('hi')")
+        
+        assert response == "This is Google Gemini's analysis of the code."
+        assert mock_llm_instance.invoke.call_count == 1
+        
+        # Verify the prompt was constructed properly
+        call_args = mock_llm_instance.invoke.call_args[0][0]
+        assert "# Code Review Analysis Request" in call_args
+        assert "Review this function" in call_args
+        assert "def hello(): print('hi')" in call_args
+    
+    def test_invoke_llm_openai_no_instance(self):
+        """Test LLM invocation with OpenAI provider when LLM instance is not available."""
+        agent = LLMOrchestratorAgent(llm_provider='openai')
+        agent.llm_instance = None  # Simulate failed initialization
+        
+        with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            response = agent.invoke_llm("Test prompt")
+            
+            assert "Error: LLM instance not available for provider openai" in response
+            mock_logger.error.assert_called_with("LLM instance not initialized for provider: openai")
+    
+    def test_invoke_llm_google_gemini_no_instance(self):
+        """Test LLM invocation with Google Gemini provider when LLM instance is not available."""
+        agent = LLMOrchestratorAgent(llm_provider='google_gemini')
+        agent.llm_instance = None  # Simulate failed initialization
+        
+        with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            response = agent.invoke_llm("Test prompt")
+            
+            assert "Error: LLM instance not available for provider google_gemini" in response
+            mock_logger.error.assert_called_with("LLM instance not initialized for provider: google_gemini")
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_invoke_llm_openai_api_error(self, mock_chat_openai):
+        """Test LLM invocation with OpenAI provider when API call fails."""
+        # Setup mock LLM instance that raises an error
+        mock_llm_instance = Mock()
+        mock_llm_instance.invoke.side_effect = Exception("API rate limit exceeded")
+        mock_chat_openai.return_value = mock_llm_instance
+        
         agent = LLMOrchestratorAgent(llm_provider='openai', api_key='test-key')
         
         with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
             response = agent.invoke_llm("Test prompt")
             
-            assert "Mock LLM Analysis Results" in response
-            mock_logger.warning.assert_called_with(
-                "OpenAI integration not yet implemented, using mock response"
-            )
+            assert "Error calling openai API: API rate limit exceeded" in response
+            mock_logger.error.assert_called_with("Error calling openai API: API rate limit exceeded")
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_invoke_llm_google_gemini_api_error(self, mock_chat_google):
+        """Test LLM invocation with Google Gemini provider when API call fails."""
+        # Setup mock LLM instance that raises an error
+        mock_llm_instance = Mock()
+        mock_llm_instance.invoke.side_effect = Exception("Quota exceeded")
+        mock_chat_google.return_value = mock_llm_instance
+        
+        agent = LLMOrchestratorAgent(llm_provider='google_gemini', api_key='test-key')
+        
+        with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            response = agent.invoke_llm("Test prompt")
+            
+            assert "Error calling google_gemini API: Quota exceeded" in response
+            mock_logger.error.assert_called_with("Error calling google_gemini API: Quota exceeded")
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_invoke_llm_openai_response_without_content(self, mock_chat_openai):
+        """Test LLM invocation with OpenAI provider when response doesn't have content attribute."""
+        # Setup mock LLM instance that returns a response without content attribute
+        mock_llm_instance = Mock()
+        mock_response = "Raw response string"
+        mock_llm_instance.invoke.return_value = mock_response
+        mock_chat_openai.return_value = mock_llm_instance
+        
+        agent = LLMOrchestratorAgent(llm_provider='openai', api_key='test-key')
+        
+        response = agent.invoke_llm("Test prompt")
+        
+        assert response == "Raw response string"
+        assert mock_llm_instance.invoke.call_count == 1
     
     def test_invoke_llm_local_fallback(self):
-        """Test LLM invocation with local provider falls back to mock."""
+        """Test LLM invocation with local provider when no instance available."""
         agent = LLMOrchestratorAgent(llm_provider='local')
         
         with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
             response = agent.invoke_llm("Test prompt")
             
-            assert "Mock LLM Analysis Results" in response
-            mock_logger.warning.assert_called_with(
-                "Local model integration not yet implemented, using mock response"
-            )
+            assert "Error: LLM instance not available for provider local" in response
+            mock_logger.error.assert_called_with("LLM instance not initialized for provider: local")
     
     def test_invoke_llm_anthropic_fallback(self):
-        """Test LLM invocation with Anthropic provider falls back to mock."""
+        """Test LLM invocation with Anthropic provider when no instance available."""
         agent = LLMOrchestratorAgent(llm_provider='anthropic', api_key='test-key')
         
         with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
             response = agent.invoke_llm("Test prompt")
             
-            assert "Mock LLM Analysis Results" in response
-            mock_logger.warning.assert_called_with(
-                "Anthropic integration not yet implemented, using mock response"
-            )
+            assert "Error: LLM instance not available for provider anthropic" in response
+            mock_logger.error.assert_called_with("LLM instance not initialized for provider: anthropic")
     
-    def test_invoke_llm_google_fallback(self):
-        """Test LLM invocation with Google provider falls back to mock."""
-        agent = LLMOrchestratorAgent(llm_provider='google', api_key='test-key')
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_invoke_llm_legacy_google_provider(self, mock_chat_google):
+        """Test LLM invocation with legacy 'google' provider name."""
+        # Setup mock LLM instance and response
+        mock_llm_instance = Mock()
+        mock_response = Mock()
+        mock_response.content = "Analysis from Google Gemini"
+        mock_llm_instance.invoke.return_value = mock_response
+        mock_chat_google.return_value = mock_llm_instance
         
         with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
+            agent = LLMOrchestratorAgent(llm_provider='google', api_key='test-key')
             response = agent.invoke_llm("Test prompt")
             
-            assert "Mock LLM Analysis Results" in response
-            mock_logger.warning.assert_called_with(
-                "Google integration not yet implemented, using mock response"
-            )
+            # Should redirect to google_gemini and work properly
+            assert response == "Analysis from Google Gemini"
+            assert agent.llm_provider == 'google_gemini'
+            mock_logger.warning.assert_called_with("Provider 'google' is deprecated. Use 'google_gemini' instead.")
     
     def test_invoke_llm_error_handling(self):
         """Test LLM invocation error handling."""
@@ -293,9 +537,9 @@ class TestLLMOrchestratorAgent:
             with patch('src.core_engine.agents.llm_orchestrator_agent.logger') as mock_logger:
                 response = agent.invoke_llm("Test prompt")
                 
-                # Should still return a response (fallback to mock)
+                # Should return an error message since no mock fallback for invalid providers
                 assert isinstance(response, str)
-                assert "Mock LLM Analysis Results" in response
+                assert "Error: LLM instance not available for provider invalid_provider" in response
                 # Should log the error
                 mock_logger.error.assert_called()
     
@@ -360,8 +604,10 @@ class TestLLMOrchestratorAgent:
         
         assert agent.is_provider_available() is True
     
-    def test_is_provider_available_openai_with_key(self):
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatOpenAI')
+    def test_is_provider_available_openai_with_key(self, mock_chat_openai):
         """Test provider availability check for OpenAI with API key."""
+        mock_chat_openai.return_value = Mock()
         agent = LLMOrchestratorAgent(llm_provider='openai', api_key='test-key')
         
         assert agent.is_provider_available() is True
@@ -369,6 +615,7 @@ class TestLLMOrchestratorAgent:
     def test_is_provider_available_openai_no_key(self):
         """Test provider availability check for OpenAI without API key."""
         agent = LLMOrchestratorAgent(llm_provider='openai')
+        agent.llm_instance = None  # Simulate failed initialization
         
         assert agent.is_provider_available() is False
     
@@ -390,17 +637,28 @@ class TestLLMOrchestratorAgent:
         
         assert agent.is_provider_available() is False
     
-    def test_is_provider_available_google_with_key(self):
-        """Test provider availability check for Google with API key."""
-        agent = LLMOrchestratorAgent(llm_provider='google', api_key='test-key')
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_is_provider_available_google_gemini_with_key(self, mock_chat_google):
+        """Test provider availability check for Google Gemini with API key."""
+        mock_chat_google.return_value = Mock()
+        agent = LLMOrchestratorAgent(llm_provider='google_gemini', api_key='test-key')
         
         assert agent.is_provider_available() is True
     
-    def test_is_provider_available_google_no_key(self):
-        """Test provider availability check for Google without API key."""
-        agent = LLMOrchestratorAgent(llm_provider='google')
+    def test_is_provider_available_google_gemini_no_key(self):
+        """Test provider availability check for Google Gemini without API key."""
+        agent = LLMOrchestratorAgent(llm_provider='google_gemini')
+        agent.llm_instance = None  # Simulate failed initialization
         
         assert agent.is_provider_available() is False
+    
+    @patch('src.core_engine.agents.llm_orchestrator_agent.ChatGoogleGenerativeAI')
+    def test_is_provider_available_google_gemini_with_instance(self, mock_chat_google):
+        """Test provider availability check for Google Gemini with successful instance creation."""
+        mock_chat_google.return_value = Mock()
+        agent = LLMOrchestratorAgent(llm_provider='google_gemini')
+        # Even without API key, if instance is available, provider is available
+        assert agent.is_provider_available() is True
     
     def test_mock_response_timestamp(self):
         """Test that mock response includes timestamp."""
@@ -453,5 +711,6 @@ class TestLLMOrchestratorAgent:
         
         response = agent.analyze_code_with_context({}, [])
         
+        # When no files are provided, the response should be empty string
         assert isinstance(response, str)
-        assert "Mock LLM Analysis Results" in response 
+        assert response == "" 
