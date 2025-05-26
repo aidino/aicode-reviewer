@@ -85,7 +85,7 @@ class StaticAnalysisAgent:
             logger.error(f"Error initializing Python language: {str(e)}")
             raise Exception(f"Failed to initialize Python language for static analysis: {str(e)}")
     
-    def _query_ast(self, ast_node: Node, query_string: str) -> Dict[str, List[Node]]:
+    def _query_ast(self, ast_node: Node, query_string: str) -> List[Tuple[Node, Dict[str, Node]]]:
         """
         Execute a Tree-sitter query on an AST node and return captures.
         
@@ -94,11 +94,11 @@ class StaticAnalysisAgent:
             query_string (str): Tree-sitter query string
             
         Returns:
-            Dict[str, List[Node]]: Dictionary mapping capture names to lists of nodes
+            List[Tuple[Node, Dict[str, Node]]]: List of (match, captures) tuples
         """
         if self.languages.get('python') is None:
             logger.warning("Python language not available for queries")
-            return {}
+            return []
         
         try:
             # Create query object
@@ -110,7 +110,7 @@ class StaticAnalysisAgent:
             
         except Exception as e:
             logger.error(f"Error executing Tree-sitter query: {str(e)}")
-            return {}
+            return []
     
     def _check_rule_pdb_set_trace(self, ast_node: Node) -> List[Dict]:
         """
@@ -140,18 +140,18 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            # Get captured call nodes
-            call_nodes = captures.get('call', [])
-            for call_node in call_nodes:
-                findings.append({
-                    'rule_id': 'PDB_TRACE_FOUND',
-                    'message': 'pdb.set_trace() found - debugging statement should be removed',
-                    'line': call_node.start_point[0] + 1,
-                    'column': call_node.start_point[1] + 1,
-                    'severity': 'Warning',
-                    'category': 'debugging',
-                    'suggestion': 'Remove pdb.set_trace() before committing to production'
-                })
+            for _, capture_dict in captures:
+                if 'call' in capture_dict:
+                    call_node = capture_dict['call']
+                    findings.append({
+                        'rule_id': 'PDB_TRACE_FOUND',
+                        'message': 'pdb.set_trace() found - debugging statement should be removed',
+                        'line': call_node.start_point[0] + 1,
+                        'column': call_node.start_point[1] + 1,
+                        'severity': 'Warning',
+                        'category': 'debugging',
+                        'suggestion': 'Remove pdb.set_trace() before committing to production'
+                    })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_pdb_set_trace: {str(e)}")
@@ -184,18 +184,18 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            # Get captured call nodes
-            call_nodes = captures.get('call', [])
-            for call_node in call_nodes:
-                findings.append({
-                    'rule_id': 'PRINT_STATEMENT_FOUND',
-                    'message': 'print() statement found - consider using logging instead',
-                    'line': call_node.start_point[0] + 1,
-                    'column': call_node.start_point[1] + 1,
-                    'severity': 'Info',
-                    'category': 'logging',
-                    'suggestion': 'Replace print() with proper logging (logger.info, logger.debug, etc.)'
-                })
+            for _, capture_dict in captures:
+                if 'call' in capture_dict:
+                    call_node = capture_dict['call']
+                    findings.append({
+                        'rule_id': 'PRINT_STATEMENT_FOUND',
+                        'message': 'print() statement found - consider using logging instead',
+                        'line': call_node.start_point[0] + 1,
+                        'column': call_node.start_point[1] + 1,
+                        'severity': 'Info',
+                        'category': 'logging',
+                        'suggestion': 'Replace print() with proper logging (logger.info, logger.debug, etc.)'
+                    })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_print_statements: {str(e)}")
@@ -225,30 +225,27 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            # Get captured function definition nodes
-            func_def_nodes = captures.get('func_def', [])
-            func_name_nodes = captures.get('func_name', [])
-            
-            # Match function definitions with their names
-            for i, func_node in enumerate(func_def_nodes):
-                func_name_node = func_name_nodes[i] if i < len(func_name_nodes) else None
-                
-                # Calculate function length in lines
-                start_line = func_node.start_point[0]
-                end_line = func_node.end_point[0]
-                func_length = end_line - start_line + 1
-                
-                if func_length > 50:
-                    func_name = func_name_node.text.decode('utf-8') if func_name_node else 'unknown'
-                    findings.append({
-                        'rule_id': 'FUNCTION_TOO_LONG',
-                        'message': f'Function "{func_name}" is {func_length} lines long (>50 lines)',
-                        'line': start_line + 1,
-                        'column': func_node.start_point[1] + 1,
-                        'severity': 'Warning',
-                        'category': 'complexity',
-                        'suggestion': f'Consider breaking down function "{func_name}" into smaller, more focused functions'
-                    })
+            for _, capture_dict in captures:
+                if 'func_def' in capture_dict and 'func_name' in capture_dict:
+                    func_node = capture_dict['func_def']
+                    func_name_node = capture_dict['func_name']
+                    
+                    # Calculate function length in lines
+                    start_line = func_node.start_point[0]
+                    end_line = func_node.end_point[0]
+                    func_length = end_line - start_line + 1
+                    
+                    if func_length > 50:
+                        func_name = func_name_node.text.decode('utf-8')
+                        findings.append({
+                            'rule_id': 'FUNCTION_TOO_LONG',
+                            'message': f'Function "{func_name}" is {func_length} lines long (>50 lines)',
+                            'line': start_line + 1,
+                            'column': func_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'complexity',
+                            'suggestion': f'Consider breaking down function "{func_name}" into smaller, more focused functions'
+                        })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_function_too_long: {str(e)}")
@@ -259,8 +256,7 @@ class StaticAnalysisAgent:
         """
         Check for classes that are too long (>200 lines).
         
-        This rule identifies classes that might have too many responsibilities
-        and should be refactored.
+        This rule identifies classes that might be too complex and should be refactored.
         
         Args:
             ast_node (Node): Root AST node to analyze
@@ -279,30 +275,27 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            # Get captured class definition nodes
-            class_def_nodes = captures.get('class_def', [])
-            class_name_nodes = captures.get('class_name', [])
-            
-            # Match class definitions with their names
-            for i, class_node in enumerate(class_def_nodes):
-                class_name_node = class_name_nodes[i] if i < len(class_name_nodes) else None
-                
-                # Calculate class length in lines
-                start_line = class_node.start_point[0]
-                end_line = class_node.end_point[0]
-                class_length = end_line - start_line + 1
-                
-                if class_length > 200:
-                    class_name = class_name_node.text.decode('utf-8') if class_name_node else 'unknown'
-                    findings.append({
-                        'rule_id': 'CLASS_TOO_LONG',
-                        'message': f'Class "{class_name}" is {class_length} lines long (>200 lines)',
-                        'line': start_line + 1,
-                        'column': class_node.start_point[1] + 1,
-                        'severity': 'Warning',
-                        'category': 'complexity',
-                        'suggestion': f'Consider breaking down class "{class_name}" into smaller classes with single responsibilities'
-                    })
+            for _, capture_dict in captures:
+                if 'class_def' in capture_dict and 'class_name' in capture_dict:
+                    class_node = capture_dict['class_def']
+                    class_name_node = capture_dict['class_name']
+                    
+                    # Calculate class length in lines
+                    start_line = class_node.start_point[0]
+                    end_line = class_node.end_point[0]
+                    class_length = end_line - start_line + 1
+                    
+                    if class_length > 200:
+                        class_name = class_name_node.text.decode('utf-8')
+                        findings.append({
+                            'rule_id': 'CLASS_TOO_LONG',
+                            'message': f'Class "{class_name}" is {class_length} lines long (>200 lines)',
+                            'line': start_line + 1,
+                            'column': class_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'complexity',
+                            'suggestion': f'Consider breaking down class "{class_name}" into smaller, more focused classes'
+                        })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_class_too_long: {str(e)}")
@@ -311,10 +304,10 @@ class StaticAnalysisAgent:
     
     def _check_rule_simple_unused_imports(self, ast_node: Node) -> List[Dict]:
         """
-        Check for potentially unused imports (simplified version).
+        Check for potentially unused imports.
         
-        This is a simplified rule that identifies imports that are not obviously used
-        in the same file. A more sophisticated version would require cross-file analysis.
+        This is a simple implementation that looks for imported names that don't
+        appear as identifiers in the code. This may have false positives.
         
         Args:
             ast_node (Node): Root AST node to analyze
@@ -323,121 +316,329 @@ class StaticAnalysisAgent:
             List[Dict]: List of findings for potentially unused imports
         """
         findings = []
+        imported_names = set()
+        used_names = set()
         
         try:
-            # First, collect all imports
+            # Get all import statements
             import_query = """
             (import_statement
-              name: (dotted_name) @import_name) @import_stmt
+              name: (dotted_name (identifier) @import_name)) @import_stmt
             """
-            
-            import_from_query = """
-            (import_from_statement
-              name: (dotted_name (identifier) @imported_name)) @import_from_stmt
-            """
-            
-            imports = set()
-            import_locations = {}
-            
-            # Collect regular imports
             import_captures = self._query_ast(ast_node, import_query)
-            import_name_nodes = import_captures.get('import_name', [])
-            import_stmt_nodes = import_captures.get('import_stmt', [])
             
-            for i, import_node in enumerate(import_name_nodes):
-                import_stmt_node = import_stmt_nodes[i] if i < len(import_stmt_nodes) else None
-                if import_node and import_stmt_node:
-                    import_text = import_node.text.decode('utf-8')
-                    # For dotted imports, use the first part
-                    import_name = import_text.split('.')[0]
-                    imports.add(import_name)
-                    import_locations[import_name] = import_stmt_node
+            for _, capture_dict in import_captures:
+                if 'import_name' in capture_dict:
+                    import_node = capture_dict['import_name']
+                    imported_names.add(import_node.text.decode('utf-8'))
             
-            # Collect from imports
-            from_captures = self._query_ast(ast_node, import_from_query)
-            imported_name_nodes = from_captures.get('imported_name', [])
-            import_from_stmt_nodes = from_captures.get('import_from_stmt', [])
+            # Get all from-import statements
+            from_import_query = """
+            (import_from_statement
+              name: (dotted_name (identifier) @from_name)
+              names: (import_names (identifier) @import_name)) @from_stmt
+            """
+            from_import_captures = self._query_ast(ast_node, from_import_query)
             
-            for i, imported_node in enumerate(imported_name_nodes):
-                import_stmt_node = import_from_stmt_nodes[i] if i < len(import_from_stmt_nodes) else None
-                if imported_node and import_stmt_node:
-                    import_name = imported_node.text.decode('utf-8')
-                    imports.add(import_name)
-                    import_locations[import_name] = import_stmt_node
+            for _, capture_dict in from_import_captures:
+                if 'import_name' in capture_dict:
+                    import_node = capture_dict['import_name']
+                    imported_names.add(import_node.text.decode('utf-8'))
             
-            # Now check if imports are used (simple identifier matching)
+            # Get all identifiers
             identifier_query = """
             (identifier) @identifier
             """
-            
-            used_identifiers = set()
             identifier_captures = self._query_ast(ast_node, identifier_query)
-            identifier_nodes = identifier_captures.get('identifier', [])
             
-            for identifier_node in identifier_nodes:
-                identifier_name = identifier_node.text.decode('utf-8')
-                used_identifiers.add(identifier_name)
+            for _, capture_dict in identifier_captures:
+                if 'identifier' in capture_dict:
+                    identifier_node = capture_dict['identifier']
+                    used_names.add(identifier_node.text.decode('utf-8'))
             
-            # Find potentially unused imports
-            for import_name in imports:
-                if import_name not in used_identifiers:
-                    import_node = import_locations.get(import_name)
-                    if import_node:
-                        findings.append({
-                            'rule_id': 'POTENTIALLY_UNUSED_IMPORT',
-                            'message': f'Import "{import_name}" appears to be unused',
-                            'line': import_node.start_point[0] + 1,
-                            'column': import_node.start_point[1] + 1,
-                            'severity': 'Info',
-                            'category': 'imports',
-                            'suggestion': f'Consider removing unused import "{import_name}" if it\'s not needed'
-                        })
+            # Find unused imports
+            for imported_name in imported_names:
+                if imported_name not in used_names:
+                    findings.append({
+                        'rule_id': 'POTENTIALLY_UNUSED_IMPORT',
+                        'message': f'Import "{imported_name}" appears to be unused',
+                        'line': 1,  # We don't have the exact line number in this simple implementation
+                        'column': 1,
+                        'severity': 'Info',
+                        'category': 'imports',
+                        'suggestion': f'Consider removing unused import "{imported_name}" if it is not needed'
+                    })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_simple_unused_imports: {str(e)}")
         
         return findings
     
-    def analyze_python_ast(self, ast_node: Node) -> List[Dict]:
+    def _check_empty_except_block(self, ast_node: Node) -> List[Dict]:
         """
-        Perform comprehensive static analysis on a Python AST.
+        Check for empty except blocks in try-except statements.
         
-        Applies all implemented Python rules and aggregates their findings.
+        This rule identifies except blocks that don't contain any code, which is a bad practice
+        as it silently swallows exceptions.
         
         Args:
             ast_node (Node): Root AST node to analyze
             
         Returns:
-            List[Dict]: Aggregated list of all static analysis findings
+            List[Dict]: List of findings for empty except blocks
         """
-        logger.info("Starting Python static analysis")
+        findings = []
         
-        all_findings = []
+        # Query for empty except blocks
+        query_string = """
+        (try_statement
+          (except_clause
+            body: (block . ":" @except_colon
+                        . (pass_statement) @pass))) @except
+        """
         
         try:
-            # Apply all Python rules
-            rules = [
-                self._check_rule_pdb_set_trace,
-                self._check_rule_print_statements,
-                self._check_rule_function_too_long,
-                self._check_rule_class_too_long,
-                self._check_rule_simple_unused_imports
-            ]
+            captures = self._query_ast(ast_node, query_string)
             
-            for rule_func in rules:
-                try:
-                    rule_findings = rule_func(ast_node)
-                    all_findings.extend(rule_findings)
-                    logger.debug(f"Rule {rule_func.__name__} found {len(rule_findings)} issues")
-                except Exception as e:
-                    logger.error(f"Error in rule {rule_func.__name__}: {str(e)}")
-            
-            logger.info(f"Python static analysis completed. Found {len(all_findings)} total issues")
+            for _, capture_dict in captures:
+                if 'except' in capture_dict:
+                    except_node = capture_dict['except']
+                    findings.append({
+                        'rule_id': 'EMPTY_EXCEPT_BLOCK',
+                        'message': 'Empty except block found - should handle exceptions explicitly',
+                        'line': except_node.start_point[0] + 1,
+                        'column': except_node.start_point[1] + 1,
+                        'severity': 'Error',
+                        'category': 'error_handling',
+                        'suggestion': 'Add explicit exception handling or logging in the except block'
+                    })
             
         except Exception as e:
-            logger.error(f"Error in analyze_python_ast: {str(e)}")
+            logger.error(f"Error in _check_empty_except_block: {str(e)}")
         
-        return all_findings
+        return findings
+
+    def _check_hardcoded_passwords(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for potential hardcoded passwords in string assignments.
+        
+        This rule identifies assignments where the variable name contains 'password'
+        and is assigned a string literal.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for hardcoded passwords
+        """
+        findings = []
+        
+        # Query for string assignments to password-like variables
+        query_string = """
+        (assignment
+          left: (identifier) @var_name
+          right: (string) @string_value)
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'var_name' in capture_dict and 'string_value' in capture_dict:
+                    var_name = capture_dict['var_name'].text.decode('utf-8').lower()
+                    if 'password' in var_name or 'passwd' in var_name:
+                        findings.append({
+                            'rule_id': 'HARDCODED_PASSWORD',
+                            'message': f'Potential hardcoded password in variable "{var_name}"',
+                            'line': capture_dict['var_name'].start_point[0] + 1,
+                            'column': capture_dict['var_name'].start_point[1] + 1,
+                            'severity': 'Error',
+                            'category': 'security',
+                            'suggestion': 'Use environment variables or secure configuration management for passwords'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_hardcoded_passwords: {str(e)}")
+        
+        return findings
+
+    def _check_excessive_boolean_complexity(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for boolean expressions with excessive complexity.
+        
+        This rule identifies expressions with more than 3 AND/OR operators.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for complex boolean expressions
+        """
+        findings = []
+        
+        # Query for boolean operators
+        query_string = """
+        (boolean_operator) @bool_op
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'bool_op' in capture_dict:
+                    bool_op_node = capture_dict['bool_op']
+                    # Count parent boolean operators to determine complexity
+                    operator_count = 1
+                    current_node = bool_op_node
+                    while current_node.parent and current_node.parent.type == 'boolean_operator':
+                        operator_count += 1
+                        current_node = current_node.parent
+                    
+                    if operator_count > 3:
+                        findings.append({
+                            'rule_id': 'EXCESSIVE_BOOLEAN_COMPLEXITY',
+                            'message': f'Boolean expression with {operator_count} operators is too complex',
+                            'line': bool_op_node.start_point[0] + 1,
+                            'column': bool_op_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'complexity',
+                            'suggestion': 'Break down complex boolean expressions into smaller, more readable conditions'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_excessive_boolean_complexity: {str(e)}")
+        
+        return findings
+
+    def _check_magic_numbers(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for magic numbers in code.
+        
+        This rule identifies numeric literals used outside of variable assignments
+        or default parameters.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for magic numbers
+        """
+        findings = []
+        
+        # Query for numeric literals
+        query_string = """
+        (integer) @number
+        (float) @number
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'number' in capture_dict:
+                    number_node = capture_dict['number']
+                    # Skip common acceptable numbers like 0, 1, -1
+                    number_text = number_node.text.decode('utf-8')
+                    if number_text in ['0', '1', '-1']:
+                        continue
+                    
+                    # Skip if parent is assignment or parameters
+                    parent = number_node.parent
+                    if parent and parent.type in ['assignment', 'parameters']:
+                        continue
+                    
+                    findings.append({
+                        'rule_id': 'MAGIC_NUMBER',
+                        'message': f'Magic number {number_text} found',
+                        'line': number_node.start_point[0] + 1,
+                        'column': number_node.start_point[1] + 1,
+                        'severity': 'Info',
+                        'category': 'maintainability',
+                        'suggestion': f'Consider defining constant for the value {number_text}'
+                    })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_magic_numbers: {str(e)}")
+        
+        return findings
+
+    def _check_todo_comments(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for TODO/FIXME comments in code.
+        
+        This rule identifies comments containing TODO or FIXME markers.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for TODO/FIXME comments
+        """
+        findings = []
+        
+        # Query for comments
+        query_string = """
+        (comment) @comment
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'comment' in capture_dict:
+                    comment_node = capture_dict['comment']
+                    comment_text = comment_node.text.decode('utf-8').upper()
+                    if 'TODO' in comment_text or 'FIXME' in comment_text:
+                        findings.append({
+                            'rule_id': 'TODO_COMMENT_FOUND',
+                            'message': 'TODO comment found',
+                            'line': comment_node.start_point[0] + 1,
+                            'column': comment_node.start_point[1] + 1,
+                            'severity': 'Info',
+                            'category': 'documentation',
+                            'suggestion': 'Consider creating a ticket/issue for tracking this TODO item'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_todo_comments: {str(e)}")
+        
+        return findings
+
+    def analyze_python_ast(self, ast_node: Node) -> List[Dict]:
+        """
+        Analyze a Python AST and return all findings from static analysis rules.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: Combined list of findings from all rules
+        """
+        findings = []
+        
+        # Execute all Python static analysis rules
+        rule_methods = [
+            self._check_rule_pdb_set_trace,
+            self._check_rule_print_statements,
+            self._check_rule_function_too_long,
+            self._check_rule_class_too_long,
+            self._check_rule_simple_unused_imports,
+            self._check_empty_except_block,
+            self._check_hardcoded_passwords,
+            self._check_excessive_boolean_complexity,
+            self._check_magic_numbers,
+            self._check_todo_comments
+        ]
+        
+        for rule_method in rule_methods:
+            try:
+                rule_findings = rule_method(ast_node)
+                findings.extend(rule_findings)
+            except Exception as e:
+                # Log error without accessing __name__
+                logger.error(f"Error executing rule: {str(e)}")
+        
+        return findings
     
     def analyze_file_ast(self, ast_node: Node, file_path: str, language: str = 'python') -> List[Dict]:
         """

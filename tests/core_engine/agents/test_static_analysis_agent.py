@@ -387,8 +387,241 @@ class TestStaticAnalysisAgent:
                     with patch.object(agent, '_check_rule_function_too_long', side_effect=Exception("Rule error")):
                         with patch.object(agent, '_check_rule_class_too_long', side_effect=Exception("Rule error")):
                             with patch.object(agent, '_check_rule_simple_unused_imports', side_effect=Exception("Rule error")):
-                                findings = agent.analyze_python_ast(sample_ast_node)
-                                
-                                # Should still return the successful rule's findings
-                                assert len(findings) == 1
-                                assert findings[0]['rule_id'] == 'SUCCESS' 
+                                with patch.object(agent, '_check_empty_except_block', side_effect=Exception("Rule error")):
+                                    with patch.object(agent, '_check_hardcoded_passwords', side_effect=Exception("Rule error")):
+                                        with patch.object(agent, '_check_excessive_boolean_complexity', side_effect=Exception("Rule error")):
+                                            with patch.object(agent, '_check_magic_numbers', side_effect=Exception("Rule error")):
+                                                with patch.object(agent, '_check_todo_comments', side_effect=Exception("Rule error")):
+                                                    findings = agent.analyze_python_ast(sample_ast_node)
+                                                    
+                                                    # Should still return the successful rule's findings
+                                                    assert len(findings) == 1
+                                                    assert findings[0]['rule_id'] == 'SUCCESS'
+    
+    def test_check_empty_except_block_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test empty except block rule when empty except is found."""
+        # Mock captures for empty except block
+        except_node = Mock()
+        except_node.start_point = (5, 4)
+        mock_captures = [(sample_ast_node, {'except': except_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_empty_except_block(sample_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'EMPTY_EXCEPT_BLOCK'
+                assert findings[0]['line'] == 6
+                assert findings[0]['column'] == 5
+                assert findings[0]['severity'] == 'Error'
+                assert 'Empty except block found' in findings[0]['message']
+                assert 'error_handling' == findings[0]['category']
+    
+    def test_check_empty_except_block_not_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test empty except block rule when except block has content."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=[]):
+                findings = agent._check_empty_except_block(sample_ast_node)
+                
+                assert len(findings) == 0
+    
+    def test_check_hardcoded_passwords_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test hardcoded password rule when password assignment is found."""
+        # Mock captures for password assignment
+        var_node = Mock()
+        var_node.start_point = (10, 4)
+        var_node.text = b"password"
+        string_node = Mock()
+        string_node.text = b'"secret123"'
+        mock_captures = [(sample_ast_node, {'var_name': var_node, 'string_value': string_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_hardcoded_passwords(sample_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'HARDCODED_PASSWORD'
+                assert findings[0]['line'] == 11
+                assert findings[0]['column'] == 5
+                assert findings[0]['severity'] == 'Error'
+                assert 'password' in findings[0]['message']
+                assert 'security' == findings[0]['category']
+    
+    def test_check_hardcoded_passwords_not_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test hardcoded password rule when no password assignments are found."""
+        # Mock captures for non-password assignment
+        var_node = Mock()
+        var_node.start_point = (10, 4)
+        var_node.text = b"username"
+        string_node = Mock()
+        string_node.text = b'"john_doe"'
+        mock_captures = [(sample_ast_node, {'var_name': var_node, 'string_value': string_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_hardcoded_passwords(sample_ast_node)
+                
+                assert len(findings) == 0
+    
+    def test_check_excessive_boolean_complexity_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test boolean complexity rule when complex expression is found."""
+        # Mock captures for complex boolean expression
+        bool_op_node = Mock()
+        bool_op_node.start_point = (15, 8)
+        bool_op_node.id = 1
+        parent_node = Mock()
+        parent_node.type = 'boolean_operator'
+        parent_node.id = 2
+        grandparent_node = Mock()
+        grandparent_node.type = 'boolean_operator'
+        grandparent_node.id = 3
+        great_grandparent_node = Mock()
+        great_grandparent_node.type = 'boolean_operator'
+        great_grandparent_node.id = 4
+        
+        bool_op_node.parent = parent_node
+        parent_node.parent = grandparent_node
+        grandparent_node.parent = great_grandparent_node
+        
+        mock_captures = [(sample_ast_node, {'bool_op': bool_op_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_excessive_boolean_complexity(sample_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'EXCESSIVE_BOOLEAN_COMPLEXITY'
+                assert findings[0]['line'] == 16
+                assert findings[0]['column'] == 9
+                assert findings[0]['severity'] == 'Warning'
+                assert '4 operators' in findings[0]['message']
+                assert 'complexity' == findings[0]['category']
+    
+    def test_check_excessive_boolean_complexity_not_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test boolean complexity rule when expression is simple."""
+        # Mock captures for simple boolean expression
+        bool_op_node = Mock()
+        bool_op_node.start_point = (15, 8)
+        bool_op_node.id = 1
+        parent_node = Mock()
+        parent_node.type = 'boolean_operator'
+        parent_node.id = 2
+        
+        bool_op_node.parent = parent_node
+        parent_node.parent = None
+        
+        mock_captures = [(sample_ast_node, {'bool_op': bool_op_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_excessive_boolean_complexity(sample_ast_node)
+                
+                assert len(findings) == 0
+    
+    def test_check_magic_numbers_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test magic numbers rule when magic number is found."""
+        # Mock captures for magic number
+        number_node = Mock()
+        number_node.start_point = (20, 12)
+        number_node.text = b"42"
+        parent_node = Mock()
+        parent_node.type = 'binary_operator'  # Not assignment or parameters
+        number_node.parent = parent_node
+        
+        mock_captures = [(sample_ast_node, {'number': number_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_magic_numbers(sample_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'MAGIC_NUMBER'
+                assert findings[0]['line'] == 21
+                assert findings[0]['column'] == 13
+                assert findings[0]['severity'] == 'Info'
+                assert '42' in findings[0]['message']
+                assert 'maintainability' == findings[0]['category']
+    
+    def test_check_magic_numbers_not_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test magic numbers rule when number is in acceptable context."""
+        # Mock captures for acceptable number usage
+        number_node = Mock()
+        number_node.start_point = (20, 12)
+        number_node.text = b"1"  # Common acceptable value
+        parent_node = Mock()
+        parent_node.type = 'assignment'  # Acceptable context
+        number_node.parent = parent_node
+        
+        mock_captures = [(sample_ast_node, {'number': number_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_magic_numbers(sample_ast_node)
+                
+                assert len(findings) == 0
+    
+    def test_check_todo_comments_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test TODO comments rule when TODO/FIXME comment is found."""
+        # Mock captures for TODO comment
+        comment_node = Mock()
+        comment_node.start_point = (25, 4)
+        comment_node.text = b"# TODO: Implement error handling"
+        
+        mock_captures = [(sample_ast_node, {'comment': comment_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_todo_comments(sample_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'TODO_COMMENT_FOUND'
+                assert findings[0]['line'] == 26
+                assert findings[0]['column'] == 5
+                assert findings[0]['severity'] == 'Info'
+                assert 'TODO comment found' in findings[0]['message']
+                assert 'documentation' == findings[0]['category']
+    
+    def test_check_todo_comments_not_found(self, mock_tree_sitter, mock_python_language, sample_ast_node):
+        """Test TODO comments rule when no TODO/FIXME comments are found."""
+        # Mock captures for regular comment
+        comment_node = Mock()
+        comment_node.start_point = (25, 4)
+        comment_node.text = b"# This is a regular comment"
+        
+        mock_captures = [(sample_ast_node, {'comment': comment_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
+            agent = StaticAnalysisAgent()
+            agent.languages['python'] = mock_python_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_todo_comments(sample_ast_node)
+                
+                assert len(findings) == 0 
