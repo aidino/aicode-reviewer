@@ -54,12 +54,19 @@ class RAGContextAgent:
         self.model = SentenceTransformer('all-MiniLM-L6-v2')  # Good balance of speed/quality
         self.vector_size = self.model.get_sentence_embedding_dimension()
         
-        # Initialize code splitter
-        self.code_splitter = CodeSplitter(
-            language="python",
-            chunk_size=50,  # Reasonable size for code chunks
-            chunk_overlap=10  # Some overlap to maintain context
-        )
+        # Initialize code splitter with fallback
+        try:
+            # Try to create CodeSplitter - it may need additional dependencies
+            self.code_splitter = CodeSplitter(
+                language="python",
+                chunk_lines=50,  # Reasonable number of lines for code chunks
+                chunk_lines_overlap=10  # Some overlap to maintain context
+            )
+            self.use_llama_splitter = True
+        except ImportError as e:
+            logger.warning(f"CodeSplitter not available, using simple splitter: {str(e)}")
+            self.code_splitter = None
+            self.use_llama_splitter = False
         
         # Create collection if it doesn't exist
         self._create_collection_if_not_exists()
@@ -93,23 +100,31 @@ class RAGContextAgent:
         Returns:
             List[str]: List of code chunks
         """
-        try:
-            # Use LlamaIndex CodeSplitter for AST-aware splitting
-            nodes = self.code_splitter.split_text(code)
-            return [node.text for node in nodes]
-        except Exception as e:
-            logger.warning(f"AST parsing failed for {file_path}, falling back to simple chunking: {str(e)}")
-            # Simple fallback: split by newlines into roughly equal chunks
-            lines = code.split('\n')
-            chunks = []
-            chunk_size = 50  # Same as CodeSplitter default
+        if self.use_llama_splitter and self.code_splitter is not None:
+            try:
+                # Use LlamaIndex CodeSplitter for AST-aware splitting
+                nodes = self.code_splitter.split_text(code)
+                return [node.text for node in nodes]
+            except Exception as e:
+                logger.warning(f"AST parsing failed for {file_path}, falling back to simple chunking: {str(e)}")
+        
+        # Simple fallback: split by newlines into roughly equal chunks
+        lines = code.split('\n')
+        chunks = []
+        chunk_size = 50  # Same as CodeSplitter default
+        overlap = 10  # Overlap between chunks
+        
+        for i in range(0, len(lines), chunk_size - overlap):
+            end_idx = min(i + chunk_size, len(lines))
+            chunk = '\n'.join(lines[i:end_idx])
+            if chunk.strip():  # Only add non-empty chunks
+                chunks.append(chunk)
             
-            for i in range(0, len(lines), chunk_size):
-                chunk = '\n'.join(lines[i:i + chunk_size])
-                if chunk.strip():  # Only add non-empty chunks
-                    chunks.append(chunk)
-            
-            return chunks
+            # Break if we've reached the end
+            if end_idx >= len(lines):
+                break
+        
+        return chunks
     
     def build_knowledge_base(self, code_files: Dict[str, str]) -> None:
         """
