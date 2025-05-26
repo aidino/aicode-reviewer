@@ -238,12 +238,33 @@ curl http://localhost:8000/scans/
 ### **Command Line Testing**
 
 ```bash
-# Test backend API
+# Test full setup (backend + frontend)
+python scripts/test_full_setup.py
+
+# Debug frontend issues (includes browser debugging)
+python scripts/debug_frontend.py
+
+# Test backend API only
 python scripts/test_api_simple.py
 
 # Run specific analysis demo
 python scripts/demo_project_scanning.py
 ```
+
+### **Verify Installation**
+
+Sau khi cài đặt, sử dụng script test để kiểm tra:
+
+```bash
+# Test toàn bộ setup
+python scripts/test_full_setup.py
+```
+
+Script này sẽ kiểm tra:
+- ✅ Backend health và API endpoints
+- ✅ Frontend development server
+- ✅ API documentation (Swagger UI và ReDoc)
+- ✅ Connectivity giữa các components
 
 ## **Architecture**
 
@@ -376,6 +397,66 @@ This project is based on the research and design outlined in "Report: AI-Based I
 
 ---
 
+## **Troubleshooting**
+
+### **Common Issues and Solutions**
+
+#### **Backend Import Error**
+```bash
+ERROR: Error loading ASGI app. Could not import module "src.webapp.backend.api.main".
+```
+**Solution**: Đảm bảo rằng bạn đang chạy lệnh từ thư mục gốc của dự án:
+```bash
+cd /path/to/aicode-reviewer
+python -m uvicorn src.webapp.backend.api.main:app --reload --port 8000
+```
+
+#### **Module Not Found Error**
+```bash
+ModuleNotFoundError: No module named 'src'
+```
+**Solution**: Thêm thư mục hiện tại vào PYTHONPATH:
+```bash
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+python -m uvicorn src.webapp.backend.api.main:app --reload --port 8000
+```
+
+#### **Port Already in Use Error**
+```bash
+OSError: [Errno 48] Address already in use
+```
+**Solution**: Sử dụng port khác hoặc kill process đang sử dụng port 8000:
+```bash
+lsof -ti:8000 | xargs kill -9
+# hoặc sử dụng port khác
+python -m uvicorn src.webapp.backend.api.main:app --reload --port 8001
+```
+
+#### **Frontend npm Install Issues**
+```bash
+npm ERR! code ERESOLVE
+```
+**Solution**: Clear npm cache và install lại:
+```bash
+cd src/webapp/frontend
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+```
+
+#### **API Requests Failing**
+```bash
+curl: (7) Failed to connect to localhost port 8000
+```
+**Solution**: Kiểm tra backend server đang chạy và accessible:
+```bash
+# Kiểm tra server đang chạy
+curl http://localhost:8000/health
+
+# Nếu không hoạt động, restart backend
+python -m uvicorn src.webapp.backend.api.main:app --reload --port 8000
+```
+
 ## **Quick Reference**
 
 ### **Key URLs**
@@ -395,6 +476,10 @@ python -m pytest && cd src/webapp/frontend && npm test
 
 # Build for production
 cd src/webapp/frontend && npm run build
+
+# Test backend API directly
+curl http://localhost:8000/health
+curl http://localhost:8000/scans/demo_scan_1/report
 ```
 
 ### **Project Status**

@@ -10,6 +10,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import ScanList from './pages/ScanList';
 import ReportView from './pages/ReportView';
 import CreateScan from './pages/CreateScan';
+import TestPage from './pages/TestPage';
 
 // Global styles
 const globalStyles = `
@@ -245,6 +246,8 @@ const NotFoundPage: React.FC = () => {
  *   JSX.Element: Rendered application
  */
 const App: React.FC<AppProps> = ({ className = '' }) => {
+  console.log('App component rendering...');
+  
   return (
     <div className={`app ${className}`}>
       {/* Inject global styles */}
@@ -254,6 +257,16 @@ const App: React.FC<AppProps> = ({ className = '' }) => {
         <Routes>
           {/* Home route - redirects to scans */}
           <Route path="/" element={<HomePage />} />
+          
+          {/* Test page for debugging */}
+          <Route 
+            path="/test" 
+            element={
+              <Layout>
+                <TestPage />
+              </Layout>
+            } 
+          />
           
           {/* Scans list route */}
           <Route 
