@@ -8,13 +8,15 @@ queries to identify potential code quality issues.
 
 import logging
 from typing import Dict, List, Optional, Any, Tuple
+import os
 
 try:
     import tree_sitter
-    from tree_sitter import Language, Node
+    from tree_sitter import Language, Parser, Node
 except ImportError:
     tree_sitter = None
     Language = None
+    Parser = None
     Node = None
 
 # Configure logging
@@ -36,12 +38,12 @@ class StaticAnalysisAgent:
         """
         Initialize the StaticAnalysisAgent.
         
-        Sets up Tree-sitter language support and loads Python grammar
+        Sets up Tree-sitter language support and loads Python and Java grammars
         for executing static analysis queries.
         
         Raises:
             ImportError: If tree-sitter is not installed
-            Exception: If Python language grammar cannot be loaded
+            Exception: If language grammars cannot be loaded
         """
         if tree_sitter is None:
             raise ImportError(
@@ -49,41 +51,104 @@ class StaticAnalysisAgent:
             )
         
         self.languages = {}
-        self.supported_languages = ['python']
+        self.supported_languages = ['python']  # Start with only Python support
         
-        # Initialize Python language for queries
-        self._initialize_python_language()
+        # Initialize languages for queries
+        self._initialize_languages()
         
         logger.info(f"StaticAnalysisAgent initialized with languages: {self.supported_languages}")
     
-    def _initialize_python_language(self) -> None:
+    def _initialize_languages(self) -> None:
+        """
+        Initialize language grammars for Tree-sitter queries.
+        
+        Attempts to load Python and Java grammars using multiple methods.
+        
+        Raises:
+            Exception: If no language grammars can be loaded
+        """
+        try:
+            # Load Python language first
+            python_lang = self._initialize_python_language()
+            if python_lang:
+                self.languages['python'] = python_lang
+            else:
+                logger.warning("Could not load Python language grammar. Static analysis will be limited.")
+                self.languages['python'] = None  # Set to None to indicate failed initialization
+            
+            # Try to load Java language if available
+            java_lang = self._initialize_java_language()
+            if java_lang:
+                self.languages['java'] = java_lang
+                if 'java' not in self.supported_languages:
+                    self.supported_languages.append('java')
+            
+            if not any(lang is not None for lang in self.languages.values()):
+                raise Exception("No language grammars could be loaded")
+            
+        except Exception as e:
+            logger.error(f"Error initializing languages: {str(e)}")
+            raise
+    
+    def _initialize_python_language(self) -> Optional[Language]:
         """
         Initialize Python language grammar for Tree-sitter queries.
         
         Attempts to load Python grammar using multiple methods.
         
-        Raises:
-            Exception: If Python language grammar cannot be loaded
+        Returns:
+            Optional[Language]: Python language object if successful, None if failed
         """
         try:
-            # Try to load from tree-sitter-python package
-            try:
-                from tree_sitter_python import language
-                lang_capsule = language()
-                # Wrap PyCapsule with Language object for newer tree-sitter versions
-                self.languages['python'] = Language(lang_capsule)
-                logger.info("Successfully loaded Python language grammar for static analysis")
-                return
-            except ImportError:
-                logger.debug("tree-sitter-python package not found")
+            # Try to load from package first
+            from tree_sitter_python import language
+            lang_capsule = language()
+            # Wrap PyCapsule with Language object for newer tree-sitter versions
+            python_lang = Language(lang_capsule)
+            logger.info("Successfully loaded Python language grammar for static analysis")
+            return python_lang
+        except ImportError:
+            logger.debug("tree-sitter-python package not found")
             
             # If we can't load the language, we'll still continue but with limited functionality
             logger.warning("Could not load Python language grammar. Static analysis will be limited.")
-            self.languages['python'] = None
+            return None
             
         except Exception as e:
             logger.error(f"Error initializing Python language: {str(e)}")
             raise Exception(f"Failed to initialize Python language for static analysis: {str(e)}")
+    
+    def _initialize_java_language(self) -> Optional[Language]:
+        """
+        Initialize Java language support.
+        
+        Attempts to load Java grammar from tree-sitter-java package.
+        Falls back to loading from local build if package is not found.
+        
+        Returns:
+            Optional[Language]: Java language object if successful, None if failed
+        """
+        try:
+            # Try to load from package first
+            from tree_sitter_java import language as java_language
+            lang_capsule = java_language()
+            # Wrap PyCapsule with Language object for newer tree-sitter versions
+            java_lang = Language(lang_capsule)
+            logger.info("Successfully loaded Java language grammar for static analysis")
+            return java_lang
+        except ImportError:
+            logger.warning("tree-sitter-java package not found, falling back to local build")
+            try:
+                # Try to load from local build
+                java_lib_path = os.path.join(os.path.dirname(__file__), "build/java.so")
+                if os.path.exists(java_lib_path):
+                    return Language(java_lib_path, 'java')
+                else:
+                    logger.error("Java grammar not found in local build")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to load Java grammar: {str(e)}")
+                return None
     
     def _query_ast(self, ast_node: Node, query_string: str) -> List[Tuple[Node, Dict[str, Node]]]:
         """
@@ -693,4 +758,209 @@ class StaticAnalysisAgent:
         Returns:
             bool: True if language is supported, False otherwise
         """
-        return language in self.supported_languages 
+        return language in self.supported_languages
+
+    def _check_java_system_out_println(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for System.out.println() calls in Java code.
+        
+        This rule identifies print statements that should use proper logging instead.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for System.out.println usage
+        """
+        findings = []
+        
+        # Query for System.out.println() calls
+        query_string = """
+        (method_invocation
+          object: (field_access
+            object: (field_access
+              object: (identifier) @sys
+              field: (identifier) @out)
+            field: (identifier) @println)
+          arguments: (argument_list)) @call
+        (#eq? @sys "System")
+        (#eq? @out "out")
+        (#eq? @println "println")
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'call' in capture_dict:
+                    call_node = capture_dict['call']
+                    findings.append({
+                        'rule_id': 'SYSTEM_OUT_PRINTLN_FOUND',
+                        'message': 'System.out.println() found - consider using proper logging',
+                        'line': call_node.start_point[0] + 1,
+                        'column': call_node.start_point[1] + 1,
+                        'severity': 'Info',
+                        'category': 'logging',
+                        'suggestion': 'Replace System.out.println() with a proper logging framework (e.g., SLF4J, Log4j)'
+                    })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_java_system_out_println: {str(e)}")
+        
+        return findings
+
+    def _check_java_empty_catch_block(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for empty catch blocks in Java code.
+        
+        This rule identifies catch blocks that silently swallow exceptions.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for empty catch blocks
+        """
+        findings = []
+        
+        # Query for catch clauses
+        query_string = """
+        (catch_clause
+          body: (block) @catch_body) @catch
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'catch_body' in capture_dict:
+                    body_node = capture_dict['catch_body']
+                    # Check if block is empty (only contains whitespace/comments)
+                    if len(body_node.children) <= 2:  # Account for braces
+                        findings.append({
+                            'rule_id': 'EMPTY_CATCH_BLOCK',
+                            'message': 'Empty catch block found - exceptions should be handled or logged',
+                            'line': body_node.start_point[0] + 1,
+                            'column': body_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'error_handling',
+                            'suggestion': 'Either handle the exception appropriately or log it. Never silently swallow exceptions.'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_java_empty_catch_block: {str(e)}")
+        
+        return findings
+
+    def _check_java_public_fields(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for public fields in Java classes.
+        
+        This rule identifies public fields that might violate encapsulation.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for public fields
+        """
+        findings = []
+        
+        # Query for public field declarations
+        query_string = """
+        (field_declaration
+          modifiers: (modifiers
+            (modifier) @mod)
+          declarator: (variable_declarator
+            name: (identifier) @field_name)) @field
+        (#eq? @mod "public")
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string)
+            
+            for _, capture_dict in captures:
+                if 'field_name' in capture_dict and 'field' in capture_dict:
+                    field_node = capture_dict['field']
+                    field_name = capture_dict['field_name'].text.decode('utf-8')
+                    findings.append({
+                        'rule_id': 'PUBLIC_FIELD',
+                        'message': f'Public field "{field_name}" found - consider using accessors',
+                        'line': field_node.start_point[0] + 1,
+                        'column': field_node.start_point[1] + 1,
+                        'severity': 'Warning',
+                        'category': 'encapsulation',
+                        'suggestion': f'Make field "{field_name}" private and provide getter/setter methods if needed'
+                    })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_java_public_fields: {str(e)}")
+        
+        return findings
+
+    def analyze_java_ast(self, ast_node: Node) -> List[Dict]:
+        """
+        Analyze a Java AST and return all findings from static analysis rules.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: Combined list of findings from all Java rules
+        """
+        findings = []
+        
+        # Execute all Java static analysis rules
+        rule_methods = [
+            self._check_java_system_out_println,
+            self._check_java_empty_catch_block,
+            self._check_java_public_fields
+        ]
+        
+        for rule_method in rule_methods:
+            try:
+                rule_findings = rule_method(ast_node)
+                findings.extend(rule_findings)
+            except Exception as e:
+                logger.error(f"Error executing Java rule: {str(e)}")
+        
+        return findings
+
+    def analyze_ast(self, ast_node: Node, file_path: str, language: str = 'python') -> List[Dict]:
+        """
+        Analyze an AST and return findings based on the language.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            file_path (str): Path to the file being analyzed
+            language (str): Programming language (default: 'python')
+            
+        Returns:
+            List[Dict]: List of static analysis findings
+        """
+        if language not in self.supported_languages:
+            logger.warning(f"Language '{language}' not supported yet")
+            return []
+        
+        if ast_node is None:
+            logger.warning(f"No AST available for file: {file_path}")
+            return []
+        
+        try:
+            if language == 'python':
+                findings = self.analyze_python_ast(ast_node)
+            elif language == 'java':
+                findings = self.analyze_java_ast(ast_node)
+            else:
+                findings = []
+            
+            # Add file path to all findings
+            for finding in findings:
+                finding['file'] = file_path
+            
+            logger.info(f"Analyzed {file_path}: found {len(findings)} issues")
+            return findings
+            
+        except Exception as e:
+            logger.error(f"Error analyzing file {file_path}: {str(e)}")
+            return [] 

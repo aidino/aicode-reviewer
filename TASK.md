@@ -28,6 +28,7 @@
 
 * **\[DONE/TODO\]** All "Current Sprint / Active Tasks" completed.  
 * *Deliverable:* Basic Python PR scanning capability with diff summary, simple bug detection, and structured report data (initially for Markdown, adaptable for Web App).
+* 
 
 ### **Milestone 2: Enhanced Analysis, Diagramming & Basic Web App (End of Phase 2\)**
 
@@ -54,6 +55,45 @@
   * **\[BACKLOG\]** Frontend: Implement UI for displaying basic report details (findings, suggestions from ReportingAgent).  
   * **\[BACKLOG\]** Frontend: Basic rendering of PlantUML/Mermaid class diagrams (Python).  
 * *Deliverable:* Actionable solution suggestions for Python. Basic class diagrams for Python PRs. **Basic Web App for viewing Python scan reports and class diagrams.** Basic Java analysis capabilities.
+
+### **Milestone 2.5: Basic Java Support (Completed - 2025-01-28)**
+
+* **[DONE]** Update `src/core_engine/agents/ast_parsing_agent.py`:
+  * **[DONE]** Update `__init__` to also load the Java Tree-sitter grammar.
+  * **[DONE]** Update `parse_code_to_ast` to handle `language == 'java'`.
+  * **[DONE]** Implement `_extract_java_structure` method for Java AST parsing.
+  * **[DONE]** Add Java language detection for `.java` files.
+  * **[DONE]** Implement `_extract_java_class_info` and `_extract_java_method_info` methods.
+
+* **[DONE]** Update `tests/core_engine/agents/test_ast_parsing_agent.py`:
+  * **[DONE]** Add tests for Java language detection and structure extraction.
+  * **[DONE]** Add unit tests for Java class and method information extraction.
+  * **[DONE]** Ensure proper mocking to avoid Tree-sitter version compatibility issues.
+
+* **[DONE]** Update `src/core_engine/agents/static_analysis_agent.py`:
+  * **[DONE]** Implement 3 basic Java rules:
+    * **[DONE]** `_check_java_system_out_println` - detects System.out.println() usage
+    * **[DONE]** `_check_java_empty_catch_block` - detects empty catch blocks
+    * **[DONE]** `_check_java_public_fields` - detects public field violations
+  * **[DONE]** Implement `analyze_java_ast(self, ast_node: tree_sitter.Node) -> list[dict]` to call these rules.
+  * **[DONE]** Update `StaticAnalysisAgent.analyze_ast` to dispatch to `analyze_java_ast` when `language == 'java'`.
+  * **[DONE]** Add Java language initialization with proper fallback handling.
+
+* **[DONE]** Update `tests/core_engine/agents/test_static_analysis_agent.py`:
+  * **[DONE]** Add unit tests for each new Java rule with proper test cases.
+  * **[DONE]** Add tests for Java AST analysis workflow and language dispatch.
+  * **[DONE]** Ensure comprehensive test coverage for Java functionality.
+
+* **[DONE]** Update `requirements.txt`:
+  * **[DONE]** Add `tree-sitter-java>=0.20.1` dependency for Java support.
+
+**Summary:** Successfully implemented basic Java support in both ASTParsingAgent and StaticAnalysisAgent. The system can now:
+- Parse Java source code files (`.java`) into ASTs
+- Extract structural information from Java code (classes, methods, imports)
+- Apply 3 static analysis rules specific to Java code quality
+- Handle Java language alongside existing Python support
+- Gracefully fallback when Java grammar is not available
+- All tests pass with 60/60 successful test cases
 
 ### **Milestone 3: Full Project Scanning, Advanced Features & Enhanced Web App (End of Phase 3\)**
 

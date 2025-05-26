@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import tempfile
 import os
+from tree_sitter import Node, Tree, Parser, Language
 
 # Mock tree_sitter if not available
 try:
@@ -59,11 +60,12 @@ class TestStaticAnalysisAgent:
     def test_init_success(self, mock_tree_sitter, mock_python_language):
         """Test successful initialization of StaticAnalysisAgent."""
         with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
-            with patch.object(StaticAnalysisAgent, '_initialize_python_language') as mock_init:
+            with patch.object(StaticAnalysisAgent, '_initialize_python_language') as mock_init, \
+                 patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=None):
+                mock_init.return_value = mock_python_language
                 agent = StaticAnalysisAgent()
-                
                 assert agent.supported_languages == ['python']
-                assert agent.languages == {}
+                assert isinstance(agent.languages, dict)
                 mock_init.assert_called_once()
     
     def test_init_no_tree_sitter(self):
@@ -340,7 +342,9 @@ class TestStaticAnalysisAgent:
     def test_get_supported_languages(self, mock_tree_sitter):
         """Test getting supported languages."""
         with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
-            with patch.object(StaticAnalysisAgent, '_initialize_python_language'):
+            with patch.object(StaticAnalysisAgent, '_initialize_python_language') as mock_init, \
+                 patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=None):
+                mock_init.return_value = Mock()
                 agent = StaticAnalysisAgent()
                 
                 languages = agent.get_supported_languages()
@@ -353,7 +357,9 @@ class TestStaticAnalysisAgent:
     def test_is_language_supported(self, mock_tree_sitter):
         """Test checking if language is supported."""
         with patch('src.core_engine.agents.static_analysis_agent.tree_sitter', mock_tree_sitter):
-            with patch.object(StaticAnalysisAgent, '_initialize_python_language'):
+            with patch.object(StaticAnalysisAgent, '_initialize_python_language') as mock_init, \
+                 patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=None):
+                mock_init.return_value = Mock()
                 agent = StaticAnalysisAgent()
                 
                 assert agent.is_language_supported('python') is True
@@ -624,4 +630,193 @@ class TestStaticAnalysisAgent:
             with patch.object(agent, '_query_ast', return_value=mock_captures):
                 findings = agent._check_todo_comments(sample_ast_node)
                 
-                assert len(findings) == 0 
+                assert len(findings) == 0
+
+@pytest.fixture
+def mock_java_language():
+    mock_lang = Mock(spec=Language)
+    return mock_lang
+
+@pytest.fixture
+def mock_java_parser(mock_java_language):
+    parser = Mock(spec=Parser)
+    tree = Mock(spec=Tree)
+    root_node = Mock(spec=Node)
+    root_node.has_error = False
+    root_node.children = []
+    tree.root_node = root_node
+    parser.parse.return_value = tree
+    return parser
+
+@pytest.fixture
+def static_analysis_agent_with_java(mock_java_language, mock_java_parser):
+    """Create StaticAnalysisAgent with mocked Java support."""
+    with patch('src.core_engine.agents.static_analysis_agent.tree_sitter') as mock_tree_sitter:
+        mock_tree_sitter.Parser = Mock(return_value=mock_java_parser)
+        mock_tree_sitter.Language = Mock(return_value=mock_java_language)
+        
+        with patch.object(StaticAnalysisAgent, '_initialize_python_language', return_value=mock_java_language), \
+             patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=None):
+            agent = StaticAnalysisAgent()
+            agent.languages = {'python': mock_java_language}  # Only Python initially
+            agent.supported_languages = ['python']  # Only Python initially
+            return agent
+
+def test_java_grammar_loading():
+    """Test that Java grammar loading is attempted."""
+    with patch('src.core_engine.agents.static_analysis_agent.tree_sitter') as mock_tree_sitter:
+        with patch.object(StaticAnalysisAgent, '_initialize_python_language', return_value=Mock()), \
+             patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=Mock()) as mock_java_init:
+            agent = StaticAnalysisAgent()
+            
+            # Java initialization should have been attempted
+            mock_java_init.assert_called_once()
+
+def test_analyze_ast_with_java():
+    """Test analyze_ast dispatch to Java rules when Java is supported."""
+    with patch('src.core_engine.agents.static_analysis_agent.tree_sitter') as mock_tree_sitter:
+        with patch.object(StaticAnalysisAgent, '_initialize_python_language', return_value=Mock()), \
+             patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=Mock()):
+            agent = StaticAnalysisAgent()
+            agent.supported_languages = ['python', 'java']  # Manually add Java support
+            
+            # Mock the Java AST analysis method
+            with patch.object(agent, 'analyze_java_ast', return_value=[
+                {'rule_id': 'TEST_JAVA_RULE', 'message': 'Test Java finding'}
+            ]) as mock_java_analysis:
+                
+                findings = agent.analyze_ast(Mock(), 'Test.java', 'java')
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'TEST_JAVA_RULE'
+                assert findings[0]['file'] == 'Test.java'
+                mock_java_analysis.assert_called_once()
+
+def test_check_java_system_out_println(static_analysis_agent_with_java):
+    """Test detection of System.out.println() calls."""
+    # Create mock AST nodes for System.out.println()
+    println_node = Mock(spec=Node)
+    println_node.type = 'method_invocation'
+    println_node.start_point = (1, 0)
+    
+    sys_node = Mock(spec=Node)
+    sys_node.type = 'identifier'
+    sys_node.text = b'System'
+    
+    out_node = Mock(spec=Node)
+    out_node.type = 'identifier'
+    out_node.text = b'out'
+    
+    println_id_node = Mock(spec=Node)
+    println_id_node.type = 'identifier'
+    println_id_node.text = b'println'
+    
+    # Mock query captures
+    static_analysis_agent_with_java._query_ast = Mock(return_value=[
+        (None, {'call': println_node, 'sys': sys_node, 'out': out_node, 'println': println_id_node})
+    ])
+    
+    findings = static_analysis_agent_with_java._check_java_system_out_println(Mock())
+    
+    assert len(findings) == 1
+    assert findings[0]['rule_id'] == 'SYSTEM_OUT_PRINTLN_FOUND'
+    assert 'proper logging' in findings[0]['suggestion']
+
+def test_check_java_empty_catch_block(static_analysis_agent_with_java):
+    """Test detection of empty catch blocks."""
+    # Create mock AST nodes for empty catch block
+    catch_node = Mock(spec=Node)
+    catch_node.type = 'catch_clause'
+    catch_node.start_point = (1, 0)
+    
+    body_node = Mock(spec=Node)
+    body_node.type = 'block'
+    body_node.start_point = (1, 0)
+    body_node.children = [Mock(), Mock()]  # Just braces
+    
+    # Mock query captures
+    static_analysis_agent_with_java._query_ast = Mock(return_value=[
+        (None, {'catch': catch_node, 'catch_body': body_node})
+    ])
+    
+    findings = static_analysis_agent_with_java._check_java_empty_catch_block(Mock())
+    
+    assert len(findings) == 1
+    assert findings[0]['rule_id'] == 'EMPTY_CATCH_BLOCK'
+    assert 'handle the exception' in findings[0]['suggestion']
+
+def test_check_java_public_fields(static_analysis_agent_with_java):
+    """Test detection of public fields."""
+    # Create mock AST nodes for public field
+    field_node = Mock(spec=Node)
+    field_node.type = 'field_declaration'
+    field_node.start_point = (1, 0)
+    
+    mod_node = Mock(spec=Node)
+    mod_node.type = 'modifier'
+    mod_node.text = b'public'
+    
+    field_name_node = Mock(spec=Node)
+    field_name_node.type = 'identifier'
+    field_name_node.text = b'myPublicField'
+    
+    # Mock query captures
+    static_analysis_agent_with_java._query_ast = Mock(return_value=[
+        (None, {'field': field_node, 'mod': mod_node, 'field_name': field_name_node})
+    ])
+    
+    findings = static_analysis_agent_with_java._check_java_public_fields(Mock())
+    
+    assert len(findings) == 1
+    assert findings[0]['rule_id'] == 'PUBLIC_FIELD'
+    assert 'myPublicField' in findings[0]['message']
+    assert 'private' in findings[0]['suggestion']
+
+def test_analyze_java_ast(static_analysis_agent_with_java):
+    """Test full Java AST analysis."""
+    # Mock findings from individual rules
+    static_analysis_agent_with_java._check_java_system_out_println = Mock(return_value=[
+        {'rule_id': 'SYSTEM_OUT_PRINTLN_FOUND', 'message': 'Test println finding'}
+    ])
+    static_analysis_agent_with_java._check_java_empty_catch_block = Mock(return_value=[
+        {'rule_id': 'EMPTY_CATCH_BLOCK', 'message': 'Test catch finding'}
+    ])
+    static_analysis_agent_with_java._check_java_public_fields = Mock(return_value=[
+        {'rule_id': 'PUBLIC_FIELD', 'message': 'Test field finding'}
+    ])
+    
+    findings = static_analysis_agent_with_java.analyze_java_ast(Mock())
+    
+    assert len(findings) == 3
+    rule_ids = {f['rule_id'] for f in findings}
+    assert rule_ids == {'SYSTEM_OUT_PRINTLN_FOUND', 'EMPTY_CATCH_BLOCK', 'PUBLIC_FIELD'}
+
+def test_analyze_ast_with_java():
+    """Test analyze_ast dispatch to Java rules when Java is supported."""
+    with patch('src.core_engine.agents.static_analysis_agent.tree_sitter') as mock_tree_sitter:
+        with patch.object(StaticAnalysisAgent, '_initialize_python_language', return_value=Mock()), \
+             patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=Mock()):
+            agent = StaticAnalysisAgent()
+            agent.supported_languages = ['python', 'java']  # Manually add Java support
+            
+            # Mock the Java AST analysis method
+            with patch.object(agent, 'analyze_java_ast', return_value=[
+                {'rule_id': 'TEST_JAVA_RULE', 'message': 'Test Java finding'}
+            ]) as mock_java_analysis:
+                
+                findings = agent.analyze_ast(Mock(), 'Test.java', 'java')
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'TEST_JAVA_RULE'
+                assert findings[0]['file'] == 'Test.java'
+                mock_java_analysis.assert_called_once()
+
+def test_analyze_ast_unsupported_language(static_analysis_agent_with_java):
+    """Test analyze_ast with unsupported language."""
+    findings = static_analysis_agent_with_java.analyze_ast(Mock(), 'test.kt', 'kotlin')
+    assert len(findings) == 0
+
+def test_analyze_ast_no_ast(static_analysis_agent_with_java):
+    """Test analyze_ast with no AST."""
+    findings = static_analysis_agent_with_java.analyze_ast(None, 'Test.java', 'java')
+    assert len(findings) == 0 
