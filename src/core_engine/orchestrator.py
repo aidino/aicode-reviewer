@@ -447,7 +447,7 @@ def llm_analysis_node(state: GraphState) -> Dict[str, Any]:
     """
     Node for performing LLM-based semantic analysis.
     
-    Uses Large Language Models to provide deeper code insights.
+    Uses LLMOrchestratorAgent to provide deeper code insights through LLM analysis.
     
     Args:
         state (GraphState): Current workflow state
@@ -457,48 +457,73 @@ def llm_analysis_node(state: GraphState) -> Dict[str, Any]:
     """
     logger.info("Performing LLM analysis")
     
-    # TODO: Integrate with LLMOrchestratorAgent
-    # - Prepare code context for LLM analysis
-    # - Generate prompts for semantic analysis
-    # - Call local or remote LLM APIs
-    # - Parse and structure LLM responses
-    # - Combine with static analysis findings
-    # - Handle LLM errors and fallbacks
-    
     try:
+        # Import LLMOrchestratorAgent
+        from src.core_engine.agents.llm_orchestrator_agent import LLMOrchestratorAgent
+        
         parsed_asts = state.get("parsed_asts", {})
         static_findings = state.get("static_analysis_findings", [])
+        project_code = state.get("project_code", {})
+        pr_diff = state.get("pr_diff")
         
-        if not parsed_asts:
+        if not parsed_asts and not project_code and not pr_diff:
             return {
                 "error_message": "No code available for LLM analysis",
                 "current_step": "error"
             }
         
-        # Placeholder LLM analysis logic
+        # Initialize LLMOrchestratorAgent with mock provider for now
+        llm_orchestrator = LLMOrchestratorAgent(llm_provider='mock')
+        
         logger.info("Generating LLM insights for code review")
         
-        # Simulate LLM analysis results
-        llm_insights = """
-        # LLM Analysis Results (Placeholder)
+        # Determine analysis type and prepare appropriate inputs
+        if pr_diff:
+            # Analyze PR diff
+            logger.info("Analyzing PR diff with LLM")
+            llm_insights = llm_orchestrator.analyze_pr_diff(pr_diff, static_findings)
+            
+        elif project_code:
+            # Analyze full project files
+            logger.info(f"Analyzing {len(project_code)} project files with LLM")
+            llm_insights = llm_orchestrator.analyze_code_with_context(project_code, static_findings)
+            
+        else:
+            # Fallback: analyze based on parsed ASTs
+            logger.info("Analyzing parsed code with LLM")
+            
+            # Extract code content from parsed ASTs
+            code_files = {}
+            for filename, ast_data in parsed_asts.items():
+                if isinstance(ast_data, dict) and "structural_info" in ast_data:
+                    # Use structural info as a proxy for code content
+                    structural_info = ast_data["structural_info"]
+                    code_summary = f"# Structural analysis of {filename}\n"
+                    code_summary += f"Classes: {len(structural_info.get('classes', []))}\n"
+                    code_summary += f"Functions: {len(structural_info.get('functions', []))}\n"
+                    code_summary += f"Imports: {len(structural_info.get('imports', []))}\n"
+                    code_files[filename] = code_summary
+            
+            if code_files:
+                llm_insights = llm_orchestrator.analyze_code_with_context(code_files, static_findings)
+            else:
+                # Basic analysis without specific code
+                prompt = "Please provide general code review insights based on the static analysis findings."
+                llm_insights = llm_orchestrator.invoke_llm(prompt, None, static_findings)
         
-        ## Code Quality Assessment
-        - Overall code structure appears well-organized
-        - Potential performance improvements identified in utils.py
-        - Consider adding error handling in main.py
-        
-        ## Security Considerations
-        - No obvious security vulnerabilities detected
-        - Recommend input validation for user-facing functions
-        
-        ## Architectural Suggestions
-        - Consider separating concerns in main.py
-        - Utility functions could benefit from better documentation
-        """
+        # Log analysis summary
+        findings_count = len(static_findings) if static_findings else 0
+        logger.info(f"LLM analysis completed. Processed {findings_count} static analysis findings")
         
         return {
             "llm_insights": llm_insights,
-            "current_step": "reporting"
+            "current_step": "reporting",
+            "workflow_metadata": {
+                **state.get("workflow_metadata", {}),
+                "llm_provider": llm_orchestrator.llm_provider,
+                "llm_model": llm_orchestrator.model_name,
+                "static_findings_processed": findings_count
+            }
         }
         
     except Exception as e:
