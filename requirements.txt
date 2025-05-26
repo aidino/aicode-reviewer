@@ -2,6 +2,9 @@
 langchain
 langgraph
 
+# Additional dependencies for LangGraph
+pydantic
+
 # Environment and configuration
 python-dotenv
 
