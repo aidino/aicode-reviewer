@@ -11,6 +11,7 @@ from datetime import datetime
 import json
 
 from src.core_engine.agents.reporting_agent import ReportingAgent
+from src.core_engine.diagramming_engine import DiagrammingEngine
 
 
 class TestReportingAgent:
@@ -510,4 +511,161 @@ class TestReportingAgent:
         stats = agent._calculate_category_stats(findings)
         
         assert stats["test"] == 1
-        assert stats["uncategorized"] == 1 
+        assert stats["uncategorized"] == 1
+    
+    def test_init_with_diagramming_engine(self):
+        """Test ReportingAgent initialization with custom DiagrammingEngine."""
+        mock_engine = Mock(spec=DiagrammingEngine)
+        agent = ReportingAgent(diagramming_engine=mock_engine)
+        
+        assert agent.diagramming_engine == mock_engine
+    
+    def test_generate_diagrams_with_code_files(self, sample_static_findings):
+        """Test diagram generation with code files."""
+        agent = ReportingAgent()
+        
+        # Mock AST data
+        mock_ast = Mock()
+        mock_ast.root_node = Mock()
+        
+        code_files = {
+            'test.py': mock_ast,
+            'models.py': mock_ast
+        }
+        
+        with patch.object(agent.diagramming_engine, 'generate_class_diagram') as mock_generate:
+            mock_generate.side_effect = [
+                '@startuml\nclass TestClass\n@enduml',  # PlantUML
+                'classDiagram\n  class TestClass'  # Mermaid
+            ]
+            
+            diagrams = agent._generate_diagrams(code_files, sample_static_findings)
+            
+            assert len(diagrams) == 2
+            
+            # Check PlantUML diagram
+            plantuml_diagram = diagrams[0]
+            assert plantuml_diagram['type'] == 'class_diagram'
+            assert plantuml_diagram['language'] == 'python'
+            assert plantuml_diagram['format'] == 'plantuml'
+            assert '@startuml' in plantuml_diagram['content']
+            assert 'test.py' in plantuml_diagram['files_included']
+            assert 'models.py' in plantuml_diagram['files_included']
+            
+            # Check Mermaid diagram
+            mermaid_diagram = diagrams[1]
+            assert mermaid_diagram['type'] == 'class_diagram'
+            assert mermaid_diagram['language'] == 'python'
+            assert mermaid_diagram['format'] == 'mermaid'
+            assert 'classDiagram' in mermaid_diagram['content']
+            
+            # Should have been called twice
+            assert mock_generate.call_count == 2
+    
+    def test_generate_diagrams_no_code_files(self):
+        """Test diagram generation with no code files."""
+        agent = ReportingAgent()
+        
+        diagrams = agent._generate_diagrams(None, [])
+        
+        assert diagrams == []
+    
+    def test_generate_diagrams_error_handling(self, sample_static_findings):
+        """Test diagram generation error handling."""
+        agent = ReportingAgent()
+        
+        # Mock AST data
+        mock_ast = Mock()
+        mock_ast.root_node = Mock()
+        
+        code_files = {'test.py': mock_ast}
+        
+        with patch.object(agent.diagramming_engine, 'generate_class_diagram') as mock_generate:
+            mock_generate.side_effect = Exception("Test error")
+            
+            diagrams = agent._generate_diagrams(code_files, sample_static_findings)
+            
+            assert len(diagrams) == 1
+            assert diagrams[0]['type'] == 'error'
+            assert 'Test error' in diagrams[0]['content']
+    
+    def test_generate_diagrams_non_python_files(self):
+        """Test diagram generation with non-Python files."""
+        agent = ReportingAgent()
+        
+        # Mock AST data for non-Python files
+        mock_ast = Mock()
+        mock_ast.root_node = Mock()
+        
+        code_files = {
+            'test.java': mock_ast,
+            'test.js': mock_ast
+        }
+        
+        with patch.object(agent.diagramming_engine, 'generate_class_diagram') as mock_generate:
+            diagrams = agent._generate_diagrams(code_files, [])
+            
+            # Should not generate diagrams for non-Python files
+            assert diagrams == []
+            assert mock_generate.call_count == 0
+    
+    def test_generate_report_data_with_diagrams(self, sample_static_findings, sample_llm_insights, sample_scan_details):
+        """Test report data generation with diagram integration."""
+        agent = ReportingAgent()
+        
+        # Mock AST data
+        mock_ast = Mock()
+        mock_ast.root_node = Mock()
+        
+        code_files = {'test.py': mock_ast}
+        
+        with patch.object(agent, '_generate_diagrams') as mock_generate_diagrams:
+            mock_generate_diagrams.return_value = [
+                {
+                    'type': 'class_diagram',
+                    'format': 'plantuml',
+                    'content': '@startuml\nclass TestClass\n@enduml'
+                }
+            ]
+            
+            report_data = agent.generate_report_data(
+                static_findings=sample_static_findings,
+                llm_insights=sample_llm_insights,
+                scan_details=sample_scan_details,
+                code_files=code_files
+            )
+            
+            # Check that diagrams are included
+            assert "diagrams" in report_data
+            assert len(report_data["diagrams"]) == 1
+            assert report_data["diagrams"][0]['type'] == 'class_diagram'
+            
+            # Verify _generate_diagrams was called with correct parameters
+            mock_generate_diagrams.assert_called_once_with(code_files, sample_static_findings)
+    
+    def test_diagram_engine_format_switching(self, sample_static_findings):
+        """Test that diagram engine format is properly switched during generation."""
+        mock_engine = Mock(spec=DiagrammingEngine)
+        agent = ReportingAgent(diagramming_engine=mock_engine)
+        
+        # Mock AST data
+        mock_ast = Mock()
+        mock_ast.root_node = Mock()
+        
+        code_files = {'test.py': mock_ast}
+        
+        mock_engine.generate_class_diagram.side_effect = [
+            '@startuml\nclass TestClass\n@enduml',  # PlantUML
+            'classDiagram\n  class TestClass'  # Mermaid
+        ]
+        
+        diagrams = agent._generate_diagrams(code_files, sample_static_findings)
+        
+        # Verify format switching calls
+        calls = mock_engine.set_diagram_format.call_args_list
+        assert len(calls) == 2
+        assert calls[0][0][0] == 'mermaid'  # Switch to Mermaid
+        assert calls[1][0][0] == 'plantuml'  # Reset to PlantUML
+        
+        # Verify generate_class_diagram was called twice
+        assert mock_engine.generate_class_diagram.call_count == 2 

@@ -11,6 +11,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
 
+from ..diagramming_engine import DiagrammingEngine
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -27,19 +29,23 @@ class ReportingAgent:
     - Supporting future extensions for HTML/PDF output
     """
     
-    def __init__(self):
+    def __init__(self, diagramming_engine: Optional[DiagrammingEngine] = None):
         """
         Initialize the ReportingAgent.
+        
+        Args:
+            diagramming_engine (Optional[DiagrammingEngine]): Engine for diagram generation
         
         Sets up report generation capabilities and default configurations.
         """
         self.supported_formats = ['json', 'markdown', 'html']  # Future extension
         self.report_version = "1.0.0"
+        self.diagramming_engine = diagramming_engine or DiagrammingEngine()
         
-        logger.info("ReportingAgent initialized")
+        logger.info("ReportingAgent initialized with diagram generation support")
     
     def generate_report_data(self, static_findings: List[Dict], llm_insights: str, 
-                           scan_details: Dict) -> Dict:
+                           scan_details: Dict, code_files: Optional[Dict[str, Any]] = None) -> Dict:
         """
         Generate structured report data from analysis results.
         
@@ -47,6 +53,7 @@ class ReportingAgent:
             static_findings (List[Dict]): Static analysis findings from StaticAnalysisAgent
             llm_insights (str): LLM analysis insights from LLMOrchestratorAgent
             scan_details (Dict): Scan metadata (repo URL, PR ID, etc.)
+            code_files (Optional[Dict[str, Any]]): AST data for diagram generation
             
         Returns:
             Dict: Structured report data ready for formatting
@@ -77,6 +84,9 @@ class ReportingAgent:
             # Process LLM insights
             llm_review = self._process_llm_insights(llm_insights)
             
+            # Generate class diagrams if code files provided
+            diagrams = self._generate_diagrams(code_files, static_findings)
+            
             # Construct structured report data
             report_data = {
                 "scan_info": scan_info,
@@ -89,7 +99,7 @@ class ReportingAgent:
                 },
                 "static_analysis_findings": static_findings or [],
                 "llm_review": llm_review,
-                "diagrams": [],  # Placeholder for future diagram integration
+                "diagrams": diagrams,
                 "metadata": {
                     "agent_versions": {
                         "reporting_agent": self.report_version,
@@ -482,6 +492,93 @@ Please check the logs for more details and try again.
     def get_supported_formats(self) -> List[str]:
         """Get list of supported report formats."""
         return self.supported_formats.copy()
+    
+    def _generate_diagrams(self, code_files: Optional[Dict[str, Any]], 
+                         static_findings: List[Dict]) -> List[Dict]:
+        """
+        Generate diagrams from code files and findings.
+        
+        Args:
+            code_files (Optional[Dict[str, Any]]): AST data for diagram generation
+            static_findings (List[Dict]): Static analysis findings for change highlighting
+            
+        Returns:
+            List[Dict]: List of diagram data structures
+        """
+        diagrams = []
+        
+        if not code_files:
+            logger.info("No code files provided for diagram generation")
+            return diagrams
+        
+        try:
+            # Extract modified classes from static findings for highlighting
+            modified_classes = set()
+            for finding in static_findings:
+                # Try to extract class names from file paths or findings
+                # This is a simplified approach - could be enhanced
+                file_path = finding.get("file", "")
+                if file_path.endswith(".py"):
+                    # Simple heuristic: if finding mentions a class, mark it as modified
+                    message = finding.get("message", "").lower()
+                    if "class" in message:
+                        # Extract class name if possible (simplified)
+                        pass
+            
+            changes = {"modified_classes": list(modified_classes)} if modified_classes else None
+            
+            # Generate class diagram for Python files
+            python_files = {path: ast_data for path, ast_data in code_files.items() 
+                           if path.endswith('.py')}
+            
+            if python_files:
+                logger.info(f"Generating class diagram for {len(python_files)} Python files")
+                
+                # Generate PlantUML diagram
+                plantuml_diagram = self.diagramming_engine.generate_class_diagram(
+                    python_files, 'python', changes
+                )
+                
+                # Generate Mermaid diagram
+                self.diagramming_engine.set_diagram_format('mermaid')
+                mermaid_diagram = self.diagramming_engine.generate_class_diagram(
+                    python_files, 'python', changes
+                )
+                
+                # Reset to default format
+                self.diagramming_engine.set_diagram_format('plantuml')
+                
+                diagrams.append({
+                    'type': 'class_diagram',
+                    'language': 'python',
+                    'format': 'plantuml',
+                    'content': plantuml_diagram,
+                    'files_included': list(python_files.keys()),
+                    'generated_at': datetime.now().isoformat()
+                })
+                
+                diagrams.append({
+                    'type': 'class_diagram',
+                    'language': 'python', 
+                    'format': 'mermaid',
+                    'content': mermaid_diagram,
+                    'files_included': list(python_files.keys()),
+                    'generated_at': datetime.now().isoformat()
+                })
+                
+                logger.info(f"Generated {len(diagrams)} diagrams")
+            
+        except Exception as e:
+            logger.error(f"Error generating diagrams: {str(e)}")
+            # Add error diagram
+            diagrams.append({
+                'type': 'error',
+                'format': 'text',
+                'content': f"Error generating diagrams: {str(e)}",
+                'generated_at': datetime.now().isoformat()
+            })
+        
+        return diagrams
     
     def export_json(self, report_data: Dict) -> str:
         """Export report data as JSON string."""
