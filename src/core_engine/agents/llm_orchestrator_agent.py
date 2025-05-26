@@ -11,6 +11,8 @@ import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+from .rag_context_agent import RAGContextAgent
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,8 @@ class LLMOrchestratorAgent:
     - Error handling and fallback mechanisms
     """
     
-    def __init__(self, llm_provider: str = 'mock', api_key: str = None, model_name: str = None):
+    def __init__(self, llm_provider: str = 'mock', api_key: str = None, model_name: str = None,
+                 use_rag: bool = False):
         """
         Initialize the LLMOrchestratorAgent.
         
@@ -35,16 +38,21 @@ class LLMOrchestratorAgent:
             llm_provider (str): LLM provider type ('mock', 'openai', 'local', etc.)
             api_key (str): API key for commercial LLM providers (if needed)
             model_name (str): Specific model name to use
+            use_rag (bool): Whether to use RAG for context enhancement
         """
         self.llm_provider = llm_provider
         self.api_key = api_key
         self.model_name = model_name
         self.supported_providers = ['mock', 'openai', 'local', 'anthropic', 'google']
         
+        # Initialize RAG context agent if enabled
+        self.use_rag = use_rag
+        self.rag_agent = RAGContextAgent() if use_rag else None
+        
         # Initialize provider-specific configurations
         self._initialize_provider()
         
-        logger.info(f"LLMOrchestratorAgent initialized with provider: {llm_provider}")
+        logger.info(f"LLMOrchestratorAgent initialized with provider: {llm_provider}, RAG: {use_rag}")
     
     def _initialize_provider(self) -> None:
         """
@@ -89,7 +97,8 @@ class LLMOrchestratorAgent:
             logger.info(f"Initialized Google provider with model: {self.model_name}")
     
     def _construct_analysis_prompt(self, prompt: str, code_snippet: str = None, 
-                                 static_findings: List[Dict] = None) -> str:
+                                 static_findings: List[Dict] = None,
+                                 rag_context: List[Dict] = None) -> str:
         """
         Construct a comprehensive prompt for code analysis.
         
@@ -97,6 +106,7 @@ class LLMOrchestratorAgent:
             prompt (str): Base prompt or analysis request
             code_snippet (str): Code to analyze (optional)
             static_findings (List[Dict]): Static analysis findings (optional)
+            rag_context (List[Dict]): Retrieved context from RAG (optional)
             
         Returns:
             str: Constructed prompt for LLM analysis
@@ -106,6 +116,13 @@ class LLMOrchestratorAgent:
         # Add code snippet if provided
         if code_snippet:
             full_prompt += f"## Code to Analyze:\n```python\n{code_snippet}\n```\n\n"
+        
+        # Add RAG context if available
+        if rag_context:
+            full_prompt += "## Relevant Code Context:\n"
+            for i, ctx in enumerate(rag_context, 1):
+                full_prompt += f"### Context {i} (from {ctx['file_path']}, score: {ctx['score']:.2f}):\n"
+                full_prompt += f"```python\n{ctx['content']}\n```\n\n"
         
         # Add static analysis findings if provided
         if static_findings:
@@ -129,13 +146,15 @@ Please provide a comprehensive code review analysis including:
 5. **Architectural Insights**: Design patterns and structural recommendations
 6. **Specific Recommendations**: Actionable suggestions for improvement
 
+Consider both the code being analyzed and any provided context from the codebase.
 Please format your response in clear sections and provide specific, actionable feedback.
 """
         
         return full_prompt
     
     def _generate_mock_response(self, prompt: str, code_snippet: str = None, 
-                              static_findings: List[Dict] = None) -> str:
+                              static_findings: List[Dict] = None,
+                              rag_context: List[Dict] = None) -> str:
         """
         Generate a mock LLM response for testing purposes.
         
@@ -143,6 +162,7 @@ Please format your response in clear sections and provide specific, actionable f
             prompt (str): Analysis prompt
             code_snippet (str): Code snippet being analyzed
             static_findings (List[Dict]): Static analysis findings
+            rag_context (List[Dict]): Retrieved context from RAG
             
         Returns:
             str: Mock LLM response
@@ -150,6 +170,7 @@ Please format your response in clear sections and provide specific, actionable f
         # Analyze the inputs to generate contextual mock responses
         has_code = code_snippet is not None
         has_findings = static_findings and len(static_findings) > 0
+        has_rag = rag_context and len(rag_context) > 0
         findings_count = len(static_findings) if static_findings else 0
         
         # Generate contextual mock response
@@ -159,10 +180,26 @@ Please format your response in clear sections and provide specific, actionable f
 """
         
         if has_code:
+            # Extract function/class names from code snippet
+            code_elements = []
+            if 'def ' in code_snippet:
+                for line in code_snippet.split('\n'):
+                    if 'def ' in line:
+                        func_name = line.split('def ')[1].split('(')[0]
+                        code_elements.append(func_name)
+            elif 'class ' in code_snippet:
+                for line in code_snippet.split('\n'):
+                    if 'class ' in line:
+                        class_name = line.split('class ')[1].split(':')[0]
+                        code_elements.append(class_name)
+            
             mock_response += """- The code structure appears well-organized with clear function definitions
 - Variable naming follows Python conventions and is descriptive
 - Code readability is good with appropriate spacing and indentation
 """
+            # Include analyzed code elements
+            if code_elements:
+                mock_response += f"- Analyzed elements: {', '.join(code_elements)}\n"
         else:
             mock_response += """- Unable to assess code structure without specific code snippets
 - Recommend providing code samples for detailed analysis
@@ -222,7 +259,21 @@ Please format your response in clear sections and provide specific, actionable f
         mock_response += "- Add comprehensive docstrings for all public functions and classes\n"
         mock_response += "- Implement proper error handling with specific exception types\n\n"
         
-        mock_response += "## Architectural Insights\n"
+        # Add RAG context analysis if available
+        if has_rag:
+            mock_response += "## Related Code Context Analysis\n"
+            for ctx in rag_context:
+                mock_response += f"- Found related code in {ctx['file_path']} (similarity: {ctx['score']:.2f}):\n"
+                mock_response += f"```python\n{ctx['content']}\n```\n"
+                # Extract function/class names from context
+                if 'def ' in ctx['content']:
+                    func_name = ctx['content'].split('def ')[1].split('(')[0]
+                    mock_response += f"  - Related function: {func_name}\n"
+                elif 'class ' in ctx['content']:
+                    class_name = ctx['content'].split('class ')[1].split(':')[0]
+                    mock_response += f"  - Related class: {class_name}\n"
+        
+        mock_response += "\n## Architectural Insights\n"
         mock_response += "- Consider implementing dependency injection for better testability\n"
         mock_response += "- Separate business logic from presentation concerns\n"
         mock_response += "- Use design patterns (Strategy, Factory) where appropriate\n"
@@ -257,89 +308,87 @@ Please format your response in clear sections and provide specific, actionable f
     def invoke_llm(self, prompt: str, code_snippet: str = None, 
                    static_findings: List[Dict] = None) -> str:
         """
-        Invoke the LLM for code analysis.
+        Invoke the LLM with a constructed prompt and return the response.
         
         Args:
-            prompt (str): Analysis prompt or request
+            prompt (str): Base prompt or analysis request
             code_snippet (str): Code to analyze (optional)
             static_findings (List[Dict]): Static analysis findings (optional)
             
         Returns:
-            str: LLM analysis response
-            
-        Raises:
-            Exception: If LLM invocation fails
+            str: LLM response with analysis
         """
-        logger.info(f"Invoking LLM analysis with provider: {self.llm_provider}")
-        
         try:
-            # Construct the full prompt
-            full_prompt = self._construct_analysis_prompt(prompt, code_snippet, static_findings)
+            # Get RAG context if enabled
+            rag_context = None
+            if self.use_rag and code_snippet:
+                try:
+                    rag_context = self.rag_agent.query_knowledge_base(code_snippet)
+                except Exception as e:
+                    logger.warning(f"Failed to get RAG context: {str(e)}")
             
+            # Construct full prompt
+            full_prompt = self._construct_analysis_prompt(
+                prompt=prompt,
+                code_snippet=code_snippet,
+                static_findings=static_findings,
+                rag_context=rag_context
+            )
+            
+            # For mock provider, use mock response
             if self.llm_provider == 'mock':
-                # Generate mock response
-                response = self._generate_mock_response(prompt, code_snippet, static_findings)
-                logger.info("Generated mock LLM response")
-                return response
-                
-            elif self.llm_provider == 'openai':
-                # TODO: Implement OpenAI API integration
-                # This would use langchain's OpenAI integration
-                logger.warning("OpenAI integration not yet implemented, using mock response")
-                return self._generate_mock_response(prompt, code_snippet, static_findings)
-                
-            elif self.llm_provider == 'local':
-                # TODO: Implement local model integration
-                # This would use langchain's local model integration (Ollama, etc.)
-                logger.warning("Local model integration not yet implemented, using mock response")
-                return self._generate_mock_response(prompt, code_snippet, static_findings)
-                
-            elif self.llm_provider == 'anthropic':
-                # TODO: Implement Anthropic Claude integration
-                logger.warning("Anthropic integration not yet implemented, using mock response")
-                return self._generate_mock_response(prompt, code_snippet, static_findings)
-                
-            elif self.llm_provider == 'google':
-                # TODO: Implement Google Gemini integration
-                logger.warning("Google integration not yet implemented, using mock response")
-                return self._generate_mock_response(prompt, code_snippet, static_findings)
-                
-            else:
-                raise ValueError(f"Unsupported LLM provider: {self.llm_provider}")
-                
+                return self._generate_mock_response(
+                    prompt=prompt,
+                    code_snippet=code_snippet,
+                    static_findings=static_findings,
+                    rag_context=rag_context
+                )
+            
+            # TODO: Implement real LLM provider calls here
+            raise NotImplementedError(f"LLM provider {self.llm_provider} not yet implemented")
+            
         except Exception as e:
             logger.error(f"Error invoking LLM: {str(e)}")
-            # Fallback to mock response on error
-            logger.info("Falling back to mock response due to error")
-            return self._generate_mock_response(
-                f"Error occurred during analysis: {str(e)}", 
-                code_snippet, 
-                static_findings
-            )
+            return f"Error analyzing code: {str(e)}"
     
     def analyze_code_with_context(self, code_files: Dict[str, str], 
                                 static_findings: List[Dict] = None) -> str:
         """
-        Analyze multiple code files with context.
+        Analyze multiple code files with their context.
         
         Args:
-            code_files (Dict[str, str]): Dictionary of filename -> code content
-            static_findings (List[Dict]): Static analysis findings across all files
+            code_files (Dict[str, str]): Dictionary mapping file paths to code content
+            static_findings (List[Dict]): Static analysis findings (optional)
             
         Returns:
-            str: Comprehensive LLM analysis of all files
+            str: LLM analysis of the code files
         """
-        logger.info(f"Analyzing {len(code_files)} code files with context")
-        
-        # Construct a comprehensive prompt for multiple files
-        prompt = f"Please analyze the following {len(code_files)} code files for a comprehensive code review:"
-        
-        # Combine all code files into a single snippet for analysis
-        combined_code = ""
-        for filename, content in code_files.items():
-            combined_code += f"\n# File: {filename}\n{content}\n"
-        
-        return self.invoke_llm(prompt, combined_code, static_findings)
+        try:
+            # Build RAG knowledge base if enabled
+            if self.use_rag:
+                try:
+                    self.rag_agent.build_knowledge_base(code_files)
+                except Exception as e:
+                    logger.warning(f"Failed to build RAG knowledge base: {str(e)}")
+            
+            # Analyze each file
+            analyses = []
+            for file_path, code in code_files.items():
+                file_findings = [f for f in (static_findings or []) 
+                               if f.get('file_path') == file_path]
+                
+                analysis = self.invoke_llm(
+                    prompt=f"Analyze code file: {file_path}",
+                    code_snippet=code,
+                    static_findings=file_findings
+                )
+                analyses.append(f"# Analysis for {file_path}\n\n{analysis}")
+            
+            return "\n\n".join(analyses)
+            
+        except Exception as e:
+            logger.error(f"Error analyzing code files: {str(e)}")
+            return f"Error analyzing code files: {str(e)}"
     
     def analyze_pr_diff(self, pr_diff: str, static_findings: List[Dict] = None) -> str:
         """

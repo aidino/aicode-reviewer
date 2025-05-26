@@ -23,6 +23,15 @@ GitPython
 tree-sitter
 tree-sitter-python
 
+# RAG and Vector Database
+qdrant-client
+sentence-transformers
+transformers
+torch
+llama-index
+llama-index-core
+llama-index-embeddings-huggingface
+
 # Testing framework
 pytest
 pytest-cov
