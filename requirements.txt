@@ -25,6 +25,8 @@ GitPython
 tree-sitter>=0.20.1
 tree-sitter-python>=0.20.1
 tree-sitter-java>=0.20.1
+tree-sitter-kotlin>=0.20.1
+tree-sitter-xml>=0.20.1
 
 # Code complexity and quality metrics
 radon

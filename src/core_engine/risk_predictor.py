@@ -211,9 +211,13 @@ class RiskPredictor:
         except Exception as e:
             logger.warning(f"Error calculating metrics for {file_path}: {str(e)}")
             # Use basic line count as fallback
-            lines = content.split('\n')
-            file_metrics['lines_of_code'] = len(lines)
-            file_metrics['logical_lines'] = len([line for line in lines if line.strip()])
+            if content is not None:
+                lines = content.split('\n')
+                file_metrics['lines_of_code'] = len(lines)
+                file_metrics['logical_lines'] = len([line for line in lines if line.strip()])
+            else:
+                file_metrics['lines_of_code'] = 0
+                file_metrics['logical_lines'] = 0
         
         return file_metrics
     
@@ -287,6 +291,16 @@ class RiskPredictor:
         Returns:
             Dict[str, Any]: Basic calculated metrics
         """
+        if content is None:
+            return {
+                'lines_of_code': 0,
+                'blank_lines': 0,
+                'comment_lines': 0,
+                'logical_lines': 0,
+                'cyclomatic_complexity': None,
+                'maintainability_index': None
+            }
+            
         lines = content.split('\n')
         
         blank_lines = 0
@@ -476,7 +490,8 @@ class RiskPredictor:
         
         # Invert maintainability index (higher MI = lower risk)
         avg_mi_risk = max(0, 100 - avg_mi)
-        low_mi_ratio = (low_mi_files / code_metrics.get('total_files', 1)) * 100
+        total_files = code_metrics.get('total_files', 1)
+        low_mi_ratio = (low_mi_files / max(1, total_files)) * 100
         
         # Weighted combination
         maintainability_risk = (avg_mi_risk * 0.7 + low_mi_ratio * 0.3)
@@ -494,7 +509,7 @@ class RiskPredictor:
         # Size-based risk factors
         total_lines_risk = min(100, (total_lines / 100000) * 100)  # 100k+ lines = 100% risk
         avg_file_size_risk = min(100, (avg_file_size / 1000) * 100)  # 1000+ avg lines = 100% risk
-        large_files_ratio = (large_files_count / total_files) * 100
+        large_files_ratio = (large_files_count / max(1, total_files)) * 100
         
         # Weighted combination
         size_risk = (total_lines_risk * 0.3 + avg_file_size_risk * 0.4 + large_files_ratio * 0.3)

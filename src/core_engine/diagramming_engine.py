@@ -8,7 +8,7 @@ Currently focuses on Python class diagrams using PlantUML/Mermaid.js syntax.
 
 import logging
 import re
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional, Union, Set, Tuple
 from tree_sitter import Node
 
 # Configure logging
@@ -32,7 +32,9 @@ class DiagrammingEngine:
         """
         self.diagram_format = diagram_format.lower()
         self.supported_formats = ['plantuml', 'mermaid']
-        self.supported_languages = ['python']
+        self.supported_languages = ['python', 'java', 'kotlin', 'xml']
+        self.max_sequence_depth = 3  # Maximum depth for sequence tracing
+        self.max_calls_per_function = 10  # Maximum calls to trace per function
         
         if self.diagram_format not in self.supported_formats:
             raise ValueError(f"Unsupported diagram format: {diagram_format}. "
@@ -262,7 +264,19 @@ class DiagrammingEngine:
             for file_path, ast_data in code_files.items():
                 if ast_data and hasattr(ast_data, 'root_node'):
                     logger.info(f"Processing file: {file_path}")
-                    class_data = self._python_ast_to_class_data(ast_data.root_node)
+                    
+                    # Choose appropriate extraction method based on language
+                    if language.lower() == 'python':
+                        class_data = self._python_ast_to_class_data(ast_data.root_node)
+                    elif language.lower() == 'java':
+                        class_data = self._java_ast_to_class_data(ast_data.root_node)
+                    elif language.lower() == 'kotlin':
+                        class_data = self._kotlin_ast_to_class_data(ast_data.root_node)
+                    elif language.lower() == 'xml':
+                        class_data = self._xml_ast_to_class_data(ast_data.root_node)
+                    else:
+                        logger.warning(f"Unsupported language for class extraction: {language}")
+                        continue
                     
                     # Add file path to each class for context
                     for item in class_data:
@@ -463,15 +477,1458 @@ class DiagrammingEngine:
         """
         return {
             'engine_name': 'DiagrammingEngine',
-            'version': '1.0.0',
+            'version': '1.2.0',  # Updated for Kotlin and XML support
             'current_format': self.diagram_format,
             'supported_formats': self.supported_formats,
             'supported_languages': self.supported_languages,
+            'max_sequence_depth': self.max_sequence_depth,
+            'max_calls_per_function': self.max_calls_per_function,
             'capabilities': [
                 'class_diagrams',
+                'sequence_diagrams',
                 'inheritance_relationships',
+                'function_call_tracing',
+                'pr_change_focus',
                 'change_highlighting',
                 'plantuml_output',
-                'mermaid_output'
+                'mermaid_output',
+                'kotlin_support',
+                'android_xml_support'
             ]
-        } 
+        }
+    
+    def _python_ast_to_sequence_data(self, ast_node: Node, pr_changes: Optional[Dict] = None, 
+                                   rag_agent: Optional[Any] = None) -> List[Dict]:
+        """
+        Extract sequence data from Python AST focusing on PR changes.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Python code
+            pr_changes (Optional[Dict]): Information about PR changes (modified/added functions)
+            rag_agent (Optional[Any]): RAG agent for resolving external calls
+            
+        Returns:
+            List[Dict]: List of sequence interactions and participants
+        """
+        try:
+            interactions = []
+            participants = set()
+            
+            # If no PR changes specified, analyze all functions
+            if not pr_changes:
+                pr_changes = {'modified_functions': [], 'added_functions': []}
+            
+            # Find all function definitions first
+            all_functions = self._extract_python_functions(ast_node)
+            
+            # Identify entry points from PR changes
+            entry_functions = []
+            for func_name in pr_changes.get('modified_functions', []) + pr_changes.get('added_functions', []):
+                matching_funcs = [f for f in all_functions if f['name'] == func_name]
+                entry_functions.extend(matching_funcs)
+            
+            # If no specific changes, use first few functions as entry points
+            if not entry_functions:
+                entry_functions = all_functions[:3]  # Limit to first 3 functions
+            
+            # Trace call graphs from entry points
+            for entry_func in entry_functions:
+                logger.info(f"Tracing sequence from function: {entry_func['name']}")
+                
+                # Add entry function as participant
+                participants.add(entry_func['name'])
+                
+                # Trace calls from this function
+                call_chain = self._trace_python_function_calls(
+                    entry_func, all_functions, depth=0, visited=set()
+                )
+                
+                interactions.extend(call_chain)
+                
+                # Add all called functions as participants
+                for interaction in call_chain:
+                    participants.add(interaction['caller'])
+                    participants.add(interaction['callee'])
+            
+            # Build sequence data structure
+            sequence_data = {
+                'participants': list(participants),
+                'interactions': interactions,
+                'entry_points': [f['name'] for f in entry_functions],
+                'language': 'python'
+            }
+            
+            logger.info(f"Extracted sequence data: {len(participants)} participants, "
+                       f"{len(interactions)} interactions")
+            
+            return [sequence_data]
+            
+        except Exception as e:
+            logger.error(f"Error extracting Python sequence data: {str(e)}")
+            return []
+    
+    def _java_ast_to_sequence_data(self, ast_node: Node, pr_changes: Optional[Dict] = None,
+                                 rag_agent: Optional[Any] = None) -> List[Dict]:
+        """
+        Extract sequence data from Java AST focusing on PR changes.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Java code
+            pr_changes (Optional[Dict]): Information about PR changes (modified/added methods)
+            rag_agent (Optional[Any]): RAG agent for resolving external calls
+            
+        Returns:
+            List[Dict]: List of sequence interactions and participants
+        """
+        try:
+            interactions = []
+            participants = set()
+            
+            # If no PR changes specified, analyze all methods
+            if not pr_changes:
+                pr_changes = {'modified_methods': [], 'added_methods': []}
+            
+            # Find all method definitions
+            all_methods = self._extract_java_methods(ast_node)
+            
+            # Identify entry points from PR changes
+            entry_methods = []
+            for method_name in pr_changes.get('modified_methods', []) + pr_changes.get('added_methods', []):
+                matching_methods = [m for m in all_methods if m['name'] == method_name]
+                entry_methods.extend(matching_methods)
+            
+            # If no specific changes, use first few methods as entry points
+            if not entry_methods:
+                entry_methods = all_methods[:3]  # Limit to first 3 methods
+            
+            # Trace call graphs from entry points
+            for entry_method in entry_methods:
+                logger.info(f"Tracing sequence from method: {entry_method['class']}.{entry_method['name']}")
+                
+                # Add entry method as participant (class.method format)
+                participant = f"{entry_method['class']}.{entry_method['name']}"
+                participants.add(participant)
+                
+                # Trace calls from this method
+                call_chain = self._trace_java_method_calls(
+                    entry_method, all_methods, depth=0, visited=set()
+                )
+                
+                interactions.extend(call_chain)
+                
+                # Add all called methods as participants
+                for interaction in call_chain:
+                    participants.add(interaction['caller'])
+                    participants.add(interaction['callee'])
+            
+            # Build sequence data structure
+            sequence_data = {
+                'participants': list(participants),
+                'interactions': interactions,
+                'entry_points': [f"{m['class']}.{m['name']}" for m in entry_methods],
+                'language': 'java'
+            }
+            
+            logger.info(f"Extracted Java sequence data: {len(participants)} participants, "
+                       f"{len(interactions)} interactions")
+            
+            return [sequence_data]
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java sequence data: {str(e)}")
+            return []
+    
+    def _extract_python_functions(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract all function definitions from Python AST.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node
+            
+        Returns:
+            List[Dict]: List of function information
+        """
+        functions = []
+        
+        try:
+            # Query for function definitions
+            function_query = """
+            (function_definition
+                name: (identifier) @func_name
+                body: (block) @func_body
+            ) @func_def
+            """
+            
+            query = ast_node.language.query(function_query)
+            captures = query.captures(ast_node)
+            
+            # Group captures by function
+            current_func = None
+            for node, capture_name in captures:
+                if capture_name == 'func_def':
+                    current_func = {
+                        'node': node,
+                        'name': None,
+                        'body': None,
+                        'line': node.start_point[0] + 1
+                    }
+                elif capture_name == 'func_name' and current_func:
+                    current_func['name'] = node.text.decode('utf-8')
+                elif capture_name == 'func_body' and current_func:
+                    current_func['body'] = node
+                    
+                    # Only add if we have both name and body
+                    if current_func['name'] and current_func['body']:
+                        functions.append(current_func)
+                    current_func = None
+            
+            logger.info(f"Extracted {len(functions)} Python functions")
+            return functions
+            
+        except Exception as e:
+            logger.error(f"Error extracting Python functions: {str(e)}")
+            return []
+    
+    def _extract_java_methods(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract all method definitions from Java AST.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node
+            
+        Returns:
+            List[Dict]: List of method information
+        """
+        methods = []
+        
+        try:
+            # Query for method definitions within classes
+            method_query = """
+            (class_declaration
+                name: (identifier) @class_name
+                body: (class_body
+                    (method_declaration
+                        name: (identifier) @method_name
+                        body: (block) @method_body
+                    ) @method_def
+                )
+            ) @class_def
+            """
+            
+            query = ast_node.language.query(method_query)
+            captures = query.captures(ast_node)
+            
+            # Process captures to build method list
+            current_class = None
+            current_method = None
+            
+            for node, capture_name in captures:
+                if capture_name == 'class_name':
+                    current_class = node.text.decode('utf-8')
+                elif capture_name == 'method_def':
+                    current_method = {
+                        'node': node,
+                        'class': current_class,
+                        'name': None,
+                        'body': None,
+                        'line': node.start_point[0] + 1
+                    }
+                elif capture_name == 'method_name' and current_method:
+                    current_method['name'] = node.text.decode('utf-8')
+                elif capture_name == 'method_body' and current_method:
+                    current_method['body'] = node
+                    
+                    # Only add if we have all required info
+                    if current_method['name'] and current_method['body'] and current_method['class']:
+                        methods.append(current_method)
+                    current_method = None
+            
+            logger.info(f"Extracted {len(methods)} Java methods")
+            return methods
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java methods: {str(e)}")
+            return []
+    
+    def _trace_python_function_calls(self, function: Dict, all_functions: List[Dict], 
+                                   depth: int, visited: Set[str]) -> List[Dict]:
+        """
+        Trace function calls from a Python function.
+        
+        Args:
+            function (Dict): Function to trace calls from
+            all_functions (List[Dict]): All available functions for resolution
+            depth (int): Current recursion depth
+            visited (Set[str]): Set of already visited functions (prevent cycles)
+            
+        Returns:
+            List[Dict]: List of call interactions
+        """
+        interactions = []
+        
+        if depth >= self.max_sequence_depth or function['name'] in visited:
+            return interactions
+        
+        visited.add(function['name'])
+        
+        try:
+            # Query for function calls in the function body
+            call_query = """
+            (call
+                function: (identifier) @called_func
+            ) @call_expr
+            """
+            
+            query = function['body'].language.query(call_query)
+            captures = query.captures(function['body'])
+            
+            call_count = 0
+            for node, capture_name in captures:
+                if capture_name == 'called_func' and call_count < self.max_calls_per_function:
+                    called_func_name = node.text.decode('utf-8')
+                    
+                    # Skip built-in functions and common library calls
+                    if not self._is_builtin_or_library_function(called_func_name):
+                        interactions.append({
+                            'caller': function['name'],
+                            'callee': called_func_name,
+                            'type': 'function_call',
+                            'line': node.start_point[0] + 1
+                        })
+                        
+                        call_count += 1
+                        
+                        # Recursively trace the called function if it exists
+                        called_function = next((f for f in all_functions if f['name'] == called_func_name), None)
+                        if called_function and called_func_name not in visited:
+                            nested_calls = self._trace_python_function_calls(
+                                called_function, all_functions, depth + 1, visited.copy()
+                            )
+                            interactions.extend(nested_calls)
+            
+        except Exception as e:
+            logger.error(f"Error tracing calls from {function['name']}: {str(e)}")
+        
+        return interactions
+    
+    def _trace_java_method_calls(self, method: Dict, all_methods: List[Dict],
+                               depth: int, visited: Set[str]) -> List[Dict]:
+        """
+        Trace method calls from a Java method.
+        
+        Args:
+            method (Dict): Method to trace calls from
+            all_methods (List[Dict]): All available methods for resolution
+            depth (int): Current recursion depth
+            visited (Set[str]): Set of already visited methods (prevent cycles)
+            
+        Returns:
+            List[Dict]: List of call interactions
+        """
+        interactions = []
+        method_signature = f"{method['class']}.{method['name']}"
+        
+        if depth >= self.max_sequence_depth or method_signature in visited:
+            return interactions
+        
+        visited.add(method_signature)
+        
+        try:
+            # Query for method invocations in the method body
+            call_query = """
+            (method_invocation
+                name: (identifier) @called_method
+            ) @method_call
+            """
+            
+            query = method['body'].language.query(call_query)
+            captures = query.captures(method['body'])
+            
+            call_count = 0
+            for node, capture_name in captures:
+                if capture_name == 'called_method' and call_count < self.max_calls_per_function:
+                    called_method_name = node.text.decode('utf-8')
+                    
+                    # Skip built-in methods and common library calls
+                    if not self._is_builtin_or_library_function(called_method_name):
+                        # Try to resolve to a known method in the same class first
+                        called_method_full = f"{method['class']}.{called_method_name}"
+                        
+                        interactions.append({
+                            'caller': method_signature,
+                            'callee': called_method_full,
+                            'type': 'method_call',
+                            'line': node.start_point[0] + 1
+                        })
+                        
+                        call_count += 1
+                        
+                        # Recursively trace the called method if it exists
+                        called_method_obj = next((m for m in all_methods 
+                                                if f"{m['class']}.{m['name']}" == called_method_full), None)
+                        if called_method_obj and called_method_full not in visited:
+                            nested_calls = self._trace_java_method_calls(
+                                called_method_obj, all_methods, depth + 1, visited.copy()
+                            )
+                            interactions.extend(nested_calls)
+            
+        except Exception as e:
+            logger.error(f"Error tracing calls from {method_signature}: {str(e)}")
+        
+        return interactions
+    
+    def _is_builtin_or_library_function(self, function_name: str) -> bool:
+        """
+        Check if a function/method name is a built-in or common library function.
+        
+        Args:
+            function_name (str): Function name to check
+            
+        Returns:
+            bool: True if it's a built-in/library function
+        """
+        # Python built-ins and common library functions
+        python_builtins = {
+            'print', 'len', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple',
+            'range', 'enumerate', 'zip', 'map', 'filter', 'sum', 'max', 'min',
+            'abs', 'round', 'open', 'isinstance', 'hasattr', 'getattr', 'setattr',
+            'append', 'extend', 'insert', 'remove', 'pop', 'clear', 'index', 'count',
+            'sort', 'reverse', 'copy', 'deepcopy', 'join', 'split', 'strip', 'replace'
+        }
+        
+        # Java built-ins and common library methods
+        java_builtins = {
+            'println', 'print', 'toString', 'equals', 'hashCode', 'clone',
+            'size', 'isEmpty', 'contains', 'add', 'remove', 'clear', 'get',
+            'put', 'keySet', 'values', 'entrySet', 'substring', 'charAt',
+            'length', 'toLowerCase', 'toUpperCase', 'trim', 'split', 'replace'
+        }
+        
+        return function_name in python_builtins or function_name in java_builtins
+    
+    def generate_sequence_diagram(self, code_files: Dict[str, Any], language: str,
+                                pr_changes: Optional[Dict] = None, rag_agent: Optional[Any] = None) -> str:
+        """
+        Generate sequence diagram from code files focusing on PR changes.
+        
+        Args:
+            code_files (Dict[str, Any]): Dictionary mapping file paths to AST data
+            language (str): Programming language ('python' or 'java')
+            pr_changes (Optional[Dict]): Information about PR changes
+            rag_agent (Optional[Any]): RAG agent for resolving external calls
+            
+        Returns:
+            str: PlantUML or Mermaid.js sequence diagram definition
+        """
+        if language.lower() not in self.supported_languages:
+            raise ValueError(f"Unsupported language for sequence diagrams: {language}. "
+                           f"Supported languages: {self.supported_languages}")
+        
+        try:
+            all_sequence_data = []
+            
+            # Extract sequence data from all files
+            for file_path, ast_data in code_files.items():
+                if ast_data and hasattr(ast_data, 'root_node'):
+                    logger.info(f"Processing sequence data from file: {file_path}")
+                    
+                    if language.lower() == 'python':
+                        sequence_data = self._python_ast_to_sequence_data(
+                            ast_data.root_node, pr_changes, rag_agent
+                        )
+                    elif language.lower() == 'java':
+                        sequence_data = self._java_ast_to_sequence_data(
+                            ast_data.root_node, pr_changes, rag_agent
+                        )
+                    elif language.lower() == 'kotlin':
+                        sequence_data = self._kotlin_ast_to_sequence_data(
+                            ast_data.root_node, pr_changes, rag_agent
+                        )
+                    else:
+                        logger.warning(f"Sequence diagrams not supported for language: {language}")
+                        continue
+                    
+                    all_sequence_data.extend(sequence_data)
+            
+            # Merge all sequence data
+            merged_sequence_data = self._merge_sequence_data(all_sequence_data)
+            
+            # Generate diagram based on format
+            if self.diagram_format == 'plantuml':
+                return self._generate_plantuml_sequence_diagram(merged_sequence_data)
+            elif self.diagram_format == 'mermaid':
+                return self._generate_mermaid_sequence_diagram(merged_sequence_data)
+            else:
+                raise ValueError(f"Unsupported diagram format: {self.diagram_format}")
+                
+        except Exception as e:
+            logger.error(f"Error generating sequence diagram: {str(e)}")
+            return f"@startuml\nnote as N1\nError generating sequence diagram: {str(e)}\nend note\n@enduml"
+    
+    def _merge_sequence_data(self, sequence_data_list: List[Dict]) -> Dict:
+        """
+        Merge multiple sequence data structures into one.
+        
+        Args:
+            sequence_data_list (List[Dict]): List of sequence data structures
+            
+        Returns:
+            Dict: Merged sequence data
+        """
+        merged = {
+            'participants': set(),
+            'interactions': [],
+            'entry_points': [],
+            'language': 'unknown'
+        }
+        
+        for seq_data in sequence_data_list:
+            merged['participants'].update(seq_data.get('participants', []))
+            merged['interactions'].extend(seq_data.get('interactions', []))
+            merged['entry_points'].extend(seq_data.get('entry_points', []))
+            
+            if seq_data.get('language') != 'unknown':
+                merged['language'] = seq_data['language']
+        
+        # Convert participants back to list and remove duplicates from interactions
+        merged['participants'] = list(merged['participants'])
+        
+        # Remove duplicate interactions
+        seen_interactions = set()
+        unique_interactions = []
+        for interaction in merged['interactions']:
+            key = (interaction['caller'], interaction['callee'], interaction['type'])
+            if key not in seen_interactions:
+                seen_interactions.add(key)
+                unique_interactions.append(interaction)
+        
+        merged['interactions'] = unique_interactions
+        
+        return merged
+    
+    def _generate_plantuml_sequence_diagram(self, sequence_data: Dict) -> str:
+        """
+        Generate PlantUML sequence diagram.
+        
+        Args:
+            sequence_data (Dict): Merged sequence data
+            
+        Returns:
+            str: PlantUML sequence diagram definition
+        """
+        diagram = ["@startuml", ""]
+        
+        # Add title
+        language = sequence_data.get('language', 'Code')
+        diagram.append(f"title {language.title()} Sequence Diagram - PR Changes Focus")
+        diagram.append("")
+        
+        # Add participants
+        participants = sequence_data.get('participants', [])
+        if participants:
+            diagram.append("' Participants")
+            for participant in sorted(participants):
+                # Clean participant name for PlantUML
+                clean_name = participant.replace('.', '_').replace('-', '_')
+                diagram.append(f"participant \"{participant}\" as {clean_name}")
+            diagram.append("")
+        
+        # Add interactions
+        interactions = sequence_data.get('interactions', [])
+        if interactions:
+            diagram.append("' Interactions")
+            
+            # Group interactions by entry point if possible
+            entry_points = sequence_data.get('entry_points', [])
+            for entry_point in entry_points:
+                diagram.append(f"note over {entry_point.replace('.', '_').replace('-', '_')}")
+                diagram.append(f"  Entry point: {entry_point}")
+                diagram.append("end note")
+                diagram.append("")
+            
+            # Add all interactions
+            for interaction in interactions:
+                caller = interaction['caller'].replace('.', '_').replace('-', '_')
+                callee = interaction['callee'].replace('.', '_').replace('-', '_')
+                
+                # Determine arrow type based on interaction type
+                if interaction.get('type') == 'method_call':
+                    arrow = "->>"
+                else:
+                    arrow = "->"
+                
+                diagram.append(f"{caller} {arrow} {callee}: {interaction.get('type', 'call')}")
+        else:
+            diagram.append("note as N1")
+            diagram.append("  No function/method calls found")
+            diagram.append("  or calls are to built-in functions only")
+            diagram.append("end note")
+        
+        diagram.append("")
+        diagram.append("@enduml")
+        
+        return "\n".join(diagram)
+    
+    def _generate_mermaid_sequence_diagram(self, sequence_data: Dict) -> str:
+        """
+        Generate Mermaid.js sequence diagram.
+        
+        Args:
+            sequence_data (Dict): Merged sequence data
+            
+        Returns:
+            str: Mermaid.js sequence diagram definition
+        """
+        diagram = ["sequenceDiagram"]
+        
+        # Add title
+        language = sequence_data.get('language', 'Code')
+        diagram.append(f"    title {language.title()} Sequence Diagram - PR Changes Focus")
+        diagram.append("")
+        
+        # Add participants
+        participants = sequence_data.get('participants', [])
+        if participants:
+            for participant in sorted(participants):
+                # Clean participant name for Mermaid
+                clean_name = participant.replace('.', '_').replace('-', '_')
+                diagram.append(f"    participant {clean_name} as {participant}")
+        
+        # Add interactions
+        interactions = sequence_data.get('interactions', [])
+        if interactions:
+            diagram.append("")
+            
+            # Add entry point notes
+            entry_points = sequence_data.get('entry_points', [])
+            for entry_point in entry_points:
+                clean_name = entry_point.replace('.', '_').replace('-', '_')
+                diagram.append(f"    note over {clean_name}: Entry point")
+            
+            if entry_points:
+                diagram.append("")
+            
+            # Add all interactions
+            for interaction in interactions:
+                caller = interaction['caller'].replace('.', '_').replace('-', '_')
+                callee = interaction['callee'].replace('.', '_').replace('-', '_')
+                
+                # Determine arrow type based on interaction type
+                if interaction.get('type') == 'method_call':
+                    arrow = "->>"
+                else:
+                    arrow = "->"
+                
+                diagram.append(f"    {caller} {arrow} {callee}: {interaction.get('type', 'call')}")
+        else:
+            diagram.append("")
+            diagram.append("    note over participants: No function/method calls found")
+        
+        return "\n".join(diagram)
+
+    def _java_ast_to_class_data(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract class structure data from Java AST node.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Java code
+            
+        Returns:
+            List[Dict]: List of dictionaries representing classes and relationships
+        """
+        try:
+            classes = []
+            relationships = []
+            
+            # Find class declarations
+            def traverse_java_classes(node: Node):
+                if node.type == 'class_declaration':
+                    class_info = self._extract_java_class_data(node)
+                    if class_info:
+                        classes.append(class_info)
+                
+                # Recursively traverse children
+                if hasattr(node, 'children') and node.children:
+                    for child in node.children:
+                        traverse_java_classes(child)
+            
+            traverse_java_classes(ast_node)
+            
+            logger.info(f"Extracted {len(classes)} Java classes")
+            return classes
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java class data from AST: {str(e)}")
+            return []
+    
+    def _extract_java_class_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Java class information from a class declaration node.
+        
+        Args:
+            node (Node): Java class declaration node
+            
+        Returns:
+            Optional[Dict]: Extracted class information
+        """
+        try:
+            class_name = None
+            superclasses = []
+            methods = []
+            attributes = []
+            
+            # Get class name
+            for child in node.children:
+                if child.type == 'identifier':
+                    class_name = child.text.decode('utf-8')
+                    break
+            
+            if not class_name:
+                return None
+            
+            # Extract class body
+            for child in node.children:
+                if child.type == 'class_body':
+                    methods, attributes = self._extract_java_class_members(child)
+                    break
+            
+            return {
+                'type': 'class',
+                'name': class_name,
+                'attributes': attributes,
+                'methods': methods,
+                'superclasses': superclasses,
+                'line': node.start_point[0] + 1
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java class data: {str(e)}")
+            return None
+    
+    def _extract_java_class_members(self, class_body: Node) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Extract methods and attributes from Java class body.
+        
+        Args:
+            class_body (Node): Java class body node
+            
+        Returns:
+            Tuple[List[Dict], List[Dict]]: (methods, attributes)
+        """
+        methods = []
+        attributes = []
+        
+        try:
+            for child in class_body.children:
+                if child.type == 'method_declaration':
+                    method_info = self._extract_java_method_data(child)
+                    if method_info:
+                        methods.append(method_info)
+                elif child.type == 'field_declaration':
+                    field_info = self._extract_java_field_data(child)
+                    if field_info:
+                        attributes.append(field_info)
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java class members: {str(e)}")
+        
+        return methods, attributes
+    
+    def _extract_java_method_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Java method information.
+        
+        Args:
+            node (Node): Java method declaration node
+            
+        Returns:
+            Optional[Dict]: Method information
+        """
+        try:
+            method_name = None
+            parameters = []
+            return_type = "void"
+            access_modifier = "public"
+            
+            # Extract method components
+            for child in node.children:
+                if child.type == 'identifier':
+                    method_name = child.text.decode('utf-8')
+                elif child.type == 'formal_parameters':
+                    parameters = self._extract_java_parameters(child)
+                elif child.type == 'type_identifier':
+                    return_type = child.text.decode('utf-8')
+                elif child.type in ['public', 'private', 'protected']:
+                    access_modifier = child.type
+            
+            if method_name:
+                return {
+                    'name': method_name,
+                    'parameters': parameters,
+                    'return_type': return_type,
+                    'access_modifier': access_modifier
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java method data: {str(e)}")
+        
+        return None
+    
+    def _extract_java_field_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Java field information.
+        
+        Args:
+            node (Node): Java field declaration node
+            
+        Returns:
+            Optional[Dict]: Field information
+        """
+        try:
+            field_name = None
+            field_type = "Object"
+            access_modifier = "private"
+            
+            # Extract field components
+            for child in node.children:
+                if child.type == 'variable_declarator':
+                    for var_child in child.children:
+                        if var_child.type == 'identifier':
+                            field_name = var_child.text.decode('utf-8')
+                            break
+                elif child.type == 'type_identifier':
+                    field_type = child.text.decode('utf-8')
+                elif child.type in ['public', 'private', 'protected']:
+                    access_modifier = child.type
+            
+            if field_name:
+                return {
+                    'name': field_name,
+                    'type': field_type,
+                    'access_modifier': access_modifier
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Java field data: {str(e)}")
+        
+        return None
+    
+    def _extract_java_parameters(self, node: Node) -> List[str]:
+        """
+        Extract Java method parameters.
+        
+        Args:
+            node (Node): Java formal parameters node
+            
+        Returns:
+            List[str]: List of parameter names
+        """
+        parameters = []
+        
+        try:
+            for child in node.children:
+                if child.type == 'formal_parameter':
+                    for param_child in child.children:
+                        if param_child.type == 'identifier':
+                            parameters.append(param_child.text.decode('utf-8'))
+                            break
+        except Exception as e:
+            logger.error(f"Error extracting Java parameters: {str(e)}")
+        
+        return parameters
+    
+    def _kotlin_ast_to_class_data(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract class structure data from Kotlin AST node.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Kotlin code
+            
+        Returns:
+            List[Dict]: List of dictionaries representing classes and relationships
+        """
+        try:
+            classes = []
+            relationships = []
+            
+            # Find class, object, interface, and data class declarations
+            def traverse_kotlin_classes(node: Node):
+                if node.type in ['class_declaration', 'object_declaration', 'interface_declaration']:
+                    class_info = self._extract_kotlin_class_data(node)
+                    if class_info:
+                        classes.append(class_info)
+                
+                # Recursively traverse children
+                if hasattr(node, 'children') and node.children:
+                    for child in node.children:
+                        traverse_kotlin_classes(child)
+            
+            traverse_kotlin_classes(ast_node)
+            
+            logger.info(f"Extracted {len(classes)} Kotlin classes/objects/interfaces")
+            return classes
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin class data from AST: {str(e)}")
+            return []
+    
+    def _extract_kotlin_class_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Kotlin class/object/interface information.
+        
+        Args:
+            node (Node): Kotlin class/object/interface declaration node
+            
+        Returns:
+            Optional[Dict]: Extracted class information
+        """
+        try:
+            class_name = None
+            class_type = "class"
+            methods = []
+            attributes = []
+            
+            # Determine class type
+            if node.type == 'object_declaration':
+                class_type = "object"
+            elif node.type == 'interface_declaration':
+                class_type = "interface"
+            
+            # Get class name
+            for child in node.children:
+                if child.type in ['type_identifier', 'simple_identifier']:
+                    class_name = child.text.decode('utf-8')
+                    break
+            
+            if not class_name:
+                return None
+            
+            # Extract class body
+            for child in node.children:
+                if child.type == 'class_body':
+                    methods, attributes = self._extract_kotlin_class_members(child)
+                    break
+            
+            return {
+                'type': 'class',
+                'name': class_name,
+                'class_type': class_type,
+                'attributes': attributes,
+                'methods': methods,
+                'superclasses': [],
+                'line': node.start_point[0] + 1
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin class data: {str(e)}")
+            return None
+    
+    def _extract_kotlin_class_members(self, class_body: Node) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Extract methods and properties from Kotlin class body.
+        
+        Args:
+            class_body (Node): Kotlin class body node
+            
+        Returns:
+            Tuple[List[Dict], List[Dict]]: (methods, properties)
+        """
+        methods = []
+        properties = []
+        
+        try:
+            for child in class_body.children:
+                if child.type == 'function_declaration':
+                    method_info = self._extract_kotlin_function_data(child)
+                    if method_info:
+                        methods.append(method_info)
+                elif child.type == 'property_declaration':
+                    prop_info = self._extract_kotlin_property_data(child)
+                    if prop_info:
+                        properties.append(prop_info)
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin class members: {str(e)}")
+        
+        return methods, properties
+    
+    def _extract_kotlin_function_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Kotlin function information.
+        
+        Args:
+            node (Node): Kotlin function declaration node
+            
+        Returns:
+            Optional[Dict]: Function information
+        """
+        try:
+            function_name = None
+            parameters = []
+            return_type = "Unit"
+            access_modifier = "public"
+            
+            # Extract function components
+            for child in node.children:
+                if child.type == 'simple_identifier':
+                    function_name = child.text.decode('utf-8')
+                elif child.type == 'function_value_parameters':
+                    parameters = self._extract_kotlin_parameters(child)
+                elif child.type == 'type_identifier':
+                    return_type = child.text.decode('utf-8')
+                elif child.type in ['public', 'private', 'protected', 'internal']:
+                    access_modifier = child.type
+            
+            if function_name:
+                return {
+                    'name': function_name,
+                    'parameters': parameters,
+                    'return_type': return_type,
+                    'access_modifier': access_modifier
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin function data: {str(e)}")
+        
+        return None
+    
+    def _extract_kotlin_property_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Kotlin property information.
+        
+        Args:
+            node (Node): Kotlin property declaration node
+            
+        Returns:
+            Optional[Dict]: Property information
+        """
+        try:
+            property_name = None
+            property_type = "Any"
+            access_modifier = "public"
+            
+            # Extract property components
+            for child in node.children:
+                if child.type == 'simple_identifier':
+                    property_name = child.text.decode('utf-8')
+                elif child.type == 'type_identifier':
+                    property_type = child.text.decode('utf-8')
+                elif child.type in ['public', 'private', 'protected', 'internal']:
+                    access_modifier = child.type
+            
+            if property_name:
+                return {
+                    'name': property_name,
+                    'type': property_type,
+                    'access_modifier': access_modifier
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin property data: {str(e)}")
+        
+        return None
+    
+    def _extract_kotlin_parameters(self, node: Node) -> List[str]:
+        """
+        Extract Kotlin function parameters.
+        
+        Args:
+            node (Node): Kotlin function value parameters node
+            
+        Returns:
+            List[str]: List of parameter names
+        """
+        parameters = []
+        
+        try:
+            for child in node.children:
+                if child.type == 'parameter':
+                    for param_child in child.children:
+                        if param_child.type == 'simple_identifier':
+                            parameters.append(param_child.text.decode('utf-8'))
+                            break
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin parameters: {str(e)}")
+        
+        return parameters
+    
+    def _xml_ast_to_class_data(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract structural data from XML AST node (Android layouts, manifests).
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for XML code
+            
+        Returns:
+            List[Dict]: List of dictionaries representing XML structure as diagram elements
+        """
+        try:
+            elements = []
+            
+            # Find XML elements and represent them as diagram components
+            def traverse_xml_elements(node: Node, depth: int = 0):
+                if node.type == 'element':
+                    element_info = self._extract_xml_element_data(node, depth)
+                    if element_info:
+                        elements.append(element_info)
+                
+                # Recursively traverse children
+                if hasattr(node, 'children') and node.children:
+                    for child in node.children:
+                        traverse_xml_elements(child, depth + 1)
+            
+            traverse_xml_elements(ast_node)
+            
+            logger.info(f"Extracted {len(elements)} XML elements for diagram")
+            return elements
+            
+        except Exception as e:
+            logger.error(f"Error extracting XML structure data from AST: {str(e)}")
+            return []
+    
+    def _extract_xml_element_data(self, node: Node, depth: int) -> Optional[Dict]:
+        """
+        Extract XML element information for diagram representation.
+        
+        Args:
+            node (Node): XML element node
+            depth (int): Nesting depth
+            
+        Returns:
+            Optional[Dict]: Element information formatted for diagram
+        """
+        try:
+            element_name = None
+            attributes = []
+            
+            # Extract element name and attributes
+            for child in node.children:
+                if child.type == 'start_tag':
+                    for tag_child in child.children:
+                        if tag_child.type == 'name':
+                            element_name = tag_child.text.decode('utf-8')
+                        elif tag_child.type == 'attribute':
+                            attr_info = self._extract_xml_attribute_data(tag_child)
+                            if attr_info:
+                                attributes.append(attr_info)
+            
+            if element_name:
+                # Represent XML element as a "class" for diagram purposes
+                return {
+                    'type': 'class',
+                    'name': f"{element_name}_{depth}",  # Add depth to avoid name conflicts
+                    'xml_element': element_name,
+                    'attributes': [{'name': attr['name'], 'type': attr['value'], 'access_modifier': 'public'} 
+                                 for attr in attributes if attr.get('name') and attr.get('value')],
+                    'methods': [],
+                    'superclasses': [],
+                    'line': node.start_point[0] + 1,
+                    'depth': depth
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting XML element data: {str(e)}")
+        
+        return None
+    
+    def _extract_xml_attribute_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract XML attribute information.
+        
+        Args:
+            node (Node): XML attribute node
+            
+        Returns:
+            Optional[Dict]: Attribute information
+        """
+        try:
+            attr_name = None
+            attr_value = None
+            
+            for child in node.children:
+                if child.type == 'attribute_name':
+                    attr_name = child.text.decode('utf-8')
+                elif child.type == 'quoted_attribute_value':
+                    attr_value = child.text.decode('utf-8').strip('"\'')
+            
+            if attr_name and attr_value:
+                return {
+                    'name': attr_name,
+                    'value': attr_value
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting XML attribute data: {str(e)}")
+        
+        return None
+    
+    def _kotlin_ast_to_sequence_data(self, ast_node: Node, pr_changes: Optional[Dict] = None,
+                                   rag_agent: Optional[Any] = None) -> List[Dict]:
+        """
+        Extract sequence data from Kotlin AST focusing on PR changes.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Kotlin code
+            pr_changes (Optional[Dict]): Information about PR changes (modified/added functions)
+            rag_agent (Optional[Any]): RAG agent for resolving external calls
+            
+        Returns:
+            List[Dict]: List of sequence interactions and participants
+        """
+        try:
+            interactions = []
+            participants = set()
+            
+            # If no PR changes specified, analyze all functions
+            if not pr_changes:
+                pr_changes = {'modified_functions': [], 'added_functions': []}
+            
+            # Find all function definitions
+            all_functions = self._extract_kotlin_functions(ast_node)
+            
+            # Identify entry points from PR changes
+            entry_functions = []
+            for func_name in pr_changes.get('modified_functions', []) + pr_changes.get('added_functions', []):
+                matching_funcs = [f for f in all_functions if f['name'] == func_name]
+                entry_functions.extend(matching_funcs)
+            
+            # If no specific changes, use first few functions as entry points
+            if not entry_functions:
+                entry_functions = all_functions[:3]  # Limit to first 3 functions
+            
+            # Trace call graphs from entry points
+            for entry_func in entry_functions:
+                logger.info(f"Tracing sequence from Kotlin function: {entry_func['name']}")
+                
+                # Add entry function as participant
+                if entry_func.get('class'):
+                    participant = f"{entry_func['class']}.{entry_func['name']}"
+                else:
+                    participant = entry_func['name']
+                participants.add(participant)
+                
+                # Trace calls from this function
+                call_chain = self._trace_kotlin_function_calls(
+                    entry_func, all_functions, depth=0, visited=set()
+                )
+                
+                interactions.extend(call_chain)
+                
+                # Add all called functions as participants
+                for interaction in call_chain:
+                    participants.add(interaction['caller'])
+                    participants.add(interaction['callee'])
+            
+            # Build sequence data structure
+            sequence_data = {
+                'participants': list(participants),
+                'interactions': interactions,
+                'entry_points': [f['name'] for f in entry_functions],
+                'language': 'kotlin'
+            }
+            
+            logger.info(f"Extracted Kotlin sequence data: {len(participants)} participants, "
+                       f"{len(interactions)} interactions")
+            
+            return [sequence_data]
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin sequence data: {str(e)}")
+            return []
+    
+    def _extract_kotlin_functions(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract all function definitions from Kotlin AST.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node
+            
+        Returns:
+            List[Dict]: List of function information
+        """
+        functions = []
+        
+        try:
+            # Find all function declarations
+            def traverse_kotlin_functions(node: Node, class_name: Optional[str] = None):
+                if node.type == 'function_declaration':
+                    func_info = self._extract_kotlin_function_for_sequence(node, class_name)
+                    if func_info:
+                        functions.append(func_info)
+                elif node.type in ['class_declaration', 'object_declaration']:
+                    # Extract class name
+                    current_class = None
+                    for child in node.children:
+                        if child.type in ['type_identifier', 'simple_identifier']:
+                            current_class = child.text.decode('utf-8')
+                            break
+                    
+                    # Continue traversing with class context
+                    if hasattr(node, 'children') and node.children:
+                        for child in node.children:
+                            traverse_kotlin_functions(child, current_class)
+                else:
+                    # Continue traversing
+                    if hasattr(node, 'children') and node.children:
+                        for child in node.children:
+                            traverse_kotlin_functions(child, class_name)
+            
+            traverse_kotlin_functions(ast_node)
+            
+            logger.info(f"Found {len(functions)} Kotlin functions for sequence analysis")
+            return functions
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin functions: {str(e)}")
+            return []
+    
+    def _extract_kotlin_function_for_sequence(self, node: Node, class_name: Optional[str] = None) -> Optional[Dict]:
+        """
+        Extract Kotlin function information for sequence analysis.
+        
+        Args:
+            node (Node): Kotlin function declaration node
+            class_name (Optional[str]): Name of containing class if any
+            
+        Returns:
+            Optional[Dict]: Function information
+        """
+        try:
+            function_name = None
+            function_body = None
+            
+            # Extract function name and body
+            for child in node.children:
+                if child.type == 'simple_identifier':
+                    function_name = child.text.decode('utf-8')
+                elif child.type == 'function_body':
+                    function_body = child
+            
+            if function_name:
+                return {
+                    'name': function_name,
+                    'class': class_name,
+                    'body_node': function_body,
+                    'line': node.start_point[0] + 1
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin function for sequence: {str(e)}")
+        
+        return None
+    
+    def _trace_kotlin_function_calls(self, function: Dict, all_functions: List[Dict],
+                                   depth: int, visited: Set[str]) -> List[Dict]:
+        """
+        Trace function calls within a Kotlin function body.
+        
+        Args:
+            function (Dict): Function information with body_node
+            all_functions (List[Dict]): All available functions
+            depth (int): Current tracing depth
+            visited (Set[str]): Set of visited function names to prevent infinite recursion
+            
+        Returns:
+            List[Dict]: List of interaction dictionaries
+        """
+        interactions = []
+        
+        # Limit depth to prevent infinite recursion
+        if depth >= self.max_sequence_depth:
+            return interactions
+        
+        # Limit calls per function
+        call_count = 0
+        max_calls = self.max_calls_per_function
+        
+        try:
+            body_node = function.get('body_node')
+            if not body_node:
+                return interactions
+            
+            caller_name = function['name']
+            if function.get('class'):
+                caller_name = f"{function['class']}.{function['name']}"
+            
+            # Avoid revisiting the same function
+            if caller_name in visited:
+                return interactions
+            
+            visited.add(caller_name)
+            
+            # Find function calls in the body
+            def find_kotlin_calls(node: Node):
+                nonlocal call_count
+                if call_count >= max_calls:
+                    return
+                
+                if node.type == 'call_expression':
+                    callee_name = self._extract_kotlin_call_target(node)
+                    if callee_name and not self._is_builtin_or_library_function(callee_name):
+                        # Find the called function
+                        called_function = None
+                        for func in all_functions:
+                            if func['name'] == callee_name:
+                                called_function = func
+                                break
+                        
+                        if called_function:
+                            callee_full_name = callee_name
+                            if called_function.get('class'):
+                                callee_full_name = f"{called_function['class']}.{callee_name}"
+                            
+                            interactions.append({
+                                'caller': caller_name,
+                                'callee': callee_full_name,
+                                'type': 'function_call'
+                            })
+                            
+                            call_count += 1
+                            
+                            # Recursively trace the called function
+                            if callee_full_name not in visited:
+                                sub_interactions = self._trace_kotlin_function_calls(
+                                    called_function, all_functions, depth + 1, visited.copy()
+                                )
+                                interactions.extend(sub_interactions)
+                
+                # Continue traversing child nodes
+                if hasattr(node, 'children') and node.children:
+                    for child in node.children:
+                        find_kotlin_calls(child)
+            
+            find_kotlin_calls(body_node)
+            
+        except Exception as e:
+            logger.error(f"Error tracing Kotlin function calls: {str(e)}")
+        finally:
+            visited.discard(caller_name)
+        
+        return interactions
+    
+    def _extract_kotlin_call_target(self, node: Node) -> Optional[str]:
+        """
+        Extract the target function name from a Kotlin call expression.
+        
+        Args:
+            node (Node): Call expression node
+            
+        Returns:
+            Optional[str]: Function name being called
+        """
+        try:
+            # Look for identifier or navigation expression
+            for child in node.children:
+                if child.type == 'simple_identifier':
+                    return child.text.decode('utf-8')
+                elif child.type == 'navigation_expression':
+                    # Handle method calls like object.method()
+                    for nav_child in child.children:
+                        if nav_child.type == 'simple_identifier':
+                            # Return the last identifier (method name)
+                            return nav_child.text.decode('utf-8')
+            
+        except Exception as e:
+            logger.error(f"Error extracting Kotlin call target: {str(e)}")
+        
+        return None 

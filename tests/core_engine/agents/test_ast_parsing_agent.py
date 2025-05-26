@@ -452,6 +452,272 @@ class TestASTParsingAgent:
             assert method_info['name'] == 'testMethod'
             assert method_info['line'] == 6
 
+    def test_kotlin_language_detection(self):
+        """Test Kotlin language detection."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+            agent.supported_languages = ['python', 'java', 'kotlin']
+        
+        # Act & Assert
+        assert agent._detect_language("MainActivity.kt") == "kotlin"
+        assert agent._detect_language("script.kts") == "kotlin"
+        assert agent._detect_language("test.py") == "python"
+        assert agent._detect_language("Test.java") == "java"
+
+    def test_xml_language_detection(self):
+        """Test XML language detection."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+            agent.supported_languages = ['python', 'java', 'kotlin', 'xml']
+        
+        # Act & Assert
+        assert agent._detect_language("activity_main.xml") == "xml"
+        assert agent._detect_language("AndroidManifest.xml") == "xml"
+        assert agent._detect_language("strings.xml") == "xml"
+
+    def test_kotlin_structure_extraction(self):
+        """Test Kotlin structure extraction."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+
+        # Create mock Kotlin AST structure
+        import_node = Mock()
+        import_node.type = 'import_header'
+        import_node.text = b'import android.os.Bundle'
+
+        class_node = Mock()
+        class_node.type = 'class_declaration'
+        class_node.start_point = (2, 0)
+        class_node.children = []
+
+        function_node = Mock()
+        function_node.type = 'function_declaration'
+        function_node.start_point = (4, 4)
+        function_node.children = []
+
+        root_node = Mock()
+        root_node.children = [import_node, class_node, function_node]
+
+        with patch.object(agent, '_count_nodes', return_value=7):
+            # Act
+            structure = agent._extract_kotlin_structure(root_node)
+
+            # Assert
+            assert structure["language"] == "kotlin"
+            assert "imports" in structure
+            assert "classes" in structure
+            assert "functions" in structure
+            assert "objects" in structure
+            assert "node_count" in structure
+            assert structure["node_count"] == 7
+
+    def test_kotlin_class_info_extraction(self):
+        """Test extracting Kotlin class information."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+
+        # Create mock class node
+        identifier_node = Mock()
+        identifier_node.type = 'simple_identifier'
+        identifier_node.text = b'MainActivity'
+
+        class_body_node = Mock()
+        class_body_node.type = 'class_body'
+        class_body_node.children = []
+
+        class_node = Mock()
+        class_node.type = 'class_declaration'
+        class_node.start_point = (1, 0)
+        class_node.children = [identifier_node, class_body_node]
+
+        with patch.object(agent, '_get_node_text', return_value='MainActivity'):
+            # Act
+            class_info = agent._extract_kotlin_class_info(class_node)
+
+            # Assert
+            assert class_info is not None
+            assert class_info['name'] == 'MainActivity'
+            assert class_info['line'] == 2
+            assert 'functions' in class_info
+            assert 'properties' in class_info
+
+    def test_kotlin_function_info_extraction(self):
+        """Test extracting Kotlin function information."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+
+        # Create mock function node
+        identifier_node = Mock()
+        identifier_node.type = 'simple_identifier'
+        identifier_node.text = b'onCreate'
+
+        function_node = Mock()
+        function_node.type = 'function_declaration'
+        function_node.start_point = (5, 4)
+        function_node.children = [identifier_node]
+
+        with patch.object(agent, '_get_node_text', return_value='onCreate'):
+            # Act
+            function_info = agent._extract_kotlin_function_info(function_node)
+
+            # Assert
+            assert function_info is not None
+            assert function_info['name'] == 'onCreate'
+            assert function_info['line'] == 6
+
+    def test_xml_structure_extraction(self):
+        """Test XML structure extraction for Android files."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+
+        # Create mock XML AST structure
+        element_node = Mock()
+        element_node.type = 'element'
+        element_node.start_point = (0, 0)
+        element_node.children = []
+
+        root_node = Mock()
+        root_node.children = [element_node]
+
+        with patch.object(agent, '_count_nodes', return_value=3):
+            # Act
+            structure = agent._extract_xml_structure(root_node)
+
+            # Assert
+            assert structure["language"] == "xml"
+            assert "elements" in structure
+            assert "attributes" in structure
+            assert "android_components" in structure
+            assert "node_count" in structure
+            assert structure["node_count"] == 3
+
+    def test_xml_element_info_extraction(self):
+        """Test extracting XML element information."""
+        # Arrange
+        with patch.object(ASTParsingAgent, '_initialize_parsers'):
+            agent = ASTParsingAgent()
+
+        # Create mock element node
+        start_tag_node = Mock()
+        start_tag_node.type = 'start_tag'
+        start_tag_node.children = []
+
+        element_name_node = Mock()
+        element_name_node.type = 'element_name'
+        element_name_node.text = b'LinearLayout'
+
+        start_tag_node.children = [element_name_node]
+
+        element_node = Mock()
+        element_node.type = 'element'
+        element_node.start_point = (1, 0)
+        element_node.children = [start_tag_node]
+
+        with patch.object(agent, '_get_node_text', return_value='LinearLayout'):
+            # Act
+            element_info = agent._extract_xml_element_info(element_node)
+
+            # Assert
+            assert element_info is not None
+            assert element_info['name'] == 'LinearLayout'
+            assert element_info['line'] == 2
+
+    @patch('src.core_engine.agents.ast_parsing_agent.tree_sitter')
+    @patch('src.core_engine.agents.ast_parsing_agent.Parser')
+    def test_kotlin_language_loading(self, mock_parser_class, mock_tree_sitter):
+        """Test Kotlin language loading."""
+        # Arrange
+        mock_tree_sitter.Parser = mock_parser_class
+        mock_parser_instance = Mock()
+        mock_parser_class.return_value = mock_parser_instance
+        
+        # Mock Kotlin language loading
+        with patch.object(ASTParsingAgent, '_load_python_language', return_value=self.mock_language), \
+             patch.object(ASTParsingAgent, '_load_kotlin_language', return_value=self.mock_language):
+            # Act
+            agent = ASTParsingAgent()
+            
+            # Assert
+            assert 'kotlin' in agent.supported_languages
+
+    @patch('src.core_engine.agents.ast_parsing_agent.tree_sitter')
+    @patch('src.core_engine.agents.ast_parsing_agent.Parser')
+    def test_xml_language_loading(self, mock_parser_class, mock_tree_sitter):
+        """Test XML language loading."""
+        # Arrange
+        mock_tree_sitter.Parser = mock_parser_class
+        mock_parser_instance = Mock()
+        mock_parser_class.return_value = mock_parser_instance
+        
+        # Mock XML language loading
+        with patch.object(ASTParsingAgent, '_load_python_language', return_value=self.mock_language), \
+             patch.object(ASTParsingAgent, '_load_xml_language', return_value=self.mock_language):
+            # Act
+            agent = ASTParsingAgent()
+            
+            # Assert
+            assert 'xml' in agent.supported_languages
+
+    @patch('src.core_engine.agents.ast_parsing_agent.tree_sitter')
+    @patch('src.core_engine.agents.ast_parsing_agent.Parser')
+    def test_parse_kotlin_code_success(self, mock_parser_class, mock_tree_sitter):
+        """Test successful Kotlin code parsing."""
+        # Arrange
+        mock_tree_sitter.Parser = mock_parser_class
+        mock_parser_instance = Mock()
+        mock_parser_class.return_value = mock_parser_instance
+        
+        # Mock successful parsing
+        mock_tree = Mock()
+        mock_tree.root_node = self.mock_node
+        mock_parser_instance.parse.return_value = mock_tree
+        
+        with patch.object(ASTParsingAgent, '_load_python_language', return_value=self.mock_language), \
+             patch.object(ASTParsingAgent, '_load_kotlin_language', return_value=self.mock_language):
+            agent = ASTParsingAgent()
+            agent.parser = mock_parser_instance
+            agent.languages = {'python': self.mock_language, 'kotlin': self.mock_language}
+        
+        # Act
+        result = agent.parse_code_to_ast("class MainActivity : AppCompatActivity() {}", "kotlin")
+        
+        # Assert
+        assert result is not None
+        assert result == self.mock_node
+
+    @patch('src.core_engine.agents.ast_parsing_agent.tree_sitter')
+    @patch('src.core_engine.agents.ast_parsing_agent.Parser')
+    def test_parse_xml_code_success(self, mock_parser_class, mock_tree_sitter):
+        """Test successful XML code parsing."""
+        # Arrange
+        mock_tree_sitter.Parser = mock_parser_class
+        mock_parser_instance = Mock()
+        mock_parser_class.return_value = mock_parser_instance
+        
+        # Mock successful parsing
+        mock_tree = Mock()
+        mock_tree.root_node = self.mock_node
+        mock_parser_instance.parse.return_value = mock_tree
+        
+        with patch.object(ASTParsingAgent, '_load_python_language', return_value=self.mock_language), \
+             patch.object(ASTParsingAgent, '_load_xml_language', return_value=self.mock_language):
+            agent = ASTParsingAgent()
+            agent.parser = mock_parser_instance
+            agent.languages = {'python': self.mock_language, 'xml': self.mock_language}
+        
+        # Act
+        result = agent.parse_code_to_ast("<LinearLayout></LinearLayout>", "xml")
+        
+        # Assert
+        assert result is not None
+        assert result == self.mock_node
+
 @pytest.fixture
 def mock_java_language():
     mock_lang = Mock(spec=Language)

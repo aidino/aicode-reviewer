@@ -83,6 +83,20 @@ class StaticAnalysisAgent:
                 if 'java' not in self.supported_languages:
                     self.supported_languages.append('java')
             
+            # Try to load Kotlin language if available
+            kotlin_lang = self._initialize_kotlin_language()
+            if kotlin_lang:
+                self.languages['kotlin'] = kotlin_lang
+                if 'kotlin' not in self.supported_languages:
+                    self.supported_languages.append('kotlin')
+            
+            # Try to load XML language if available
+            xml_lang = self._initialize_xml_language()
+            if xml_lang:
+                self.languages['xml'] = xml_lang
+                if 'xml' not in self.supported_languages:
+                    self.supported_languages.append('xml')
+            
             if not any(lang is not None for lang in self.languages.values()):
                 raise Exception("No language grammars could be loaded")
             
@@ -150,24 +164,89 @@ class StaticAnalysisAgent:
                 logger.error(f"Failed to load Java grammar: {str(e)}")
                 return None
     
-    def _query_ast(self, ast_node: Node, query_string: str) -> List[Tuple[Node, Dict[str, Node]]]:
+    def _initialize_kotlin_language(self) -> Optional[Language]:
+        """
+        Initialize Kotlin language support.
+        
+        Attempts to load Kotlin grammar from tree-sitter-kotlin package.
+        Falls back to loading from local build if package is not found.
+        
+        Returns:
+            Optional[Language]: Kotlin language object if successful, None if failed
+        """
+        try:
+            # Try to load from package first
+            from tree_sitter_kotlin import language as kotlin_language
+            lang_capsule = kotlin_language()
+            # Wrap PyCapsule with Language object for newer tree-sitter versions
+            kotlin_lang = Language(lang_capsule)
+            logger.info("Successfully loaded Kotlin language grammar for static analysis")
+            return kotlin_lang
+        except ImportError:
+            logger.warning("tree-sitter-kotlin package not found, falling back to local build")
+            try:
+                # Try to load from local build
+                kotlin_lib_path = os.path.join(os.path.dirname(__file__), "build/kotlin.so")
+                if os.path.exists(kotlin_lib_path):
+                    return Language(kotlin_lib_path, 'kotlin')
+                else:
+                    logger.error("Kotlin grammar not found in local build")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to load Kotlin grammar: {str(e)}")
+                return None
+    
+    def _initialize_xml_language(self) -> Optional[Language]:
+        """
+        Initialize XML language support.
+        
+        Attempts to load XML grammar from tree-sitter-xml package.
+        Falls back to loading from local build if package is not found.
+        
+        Returns:
+            Optional[Language]: XML language object if successful, None if failed
+        """
+        try:
+            # Try to load from package first
+            from tree_sitter_xml import language as xml_language
+            lang_capsule = xml_language()
+            # Wrap PyCapsule with Language object for newer tree-sitter versions
+            xml_lang = Language(lang_capsule)
+            logger.info("Successfully loaded XML language grammar for static analysis")
+            return xml_lang
+        except ImportError:
+            logger.warning("tree-sitter-xml package not found, falling back to local build")
+            try:
+                # Try to load from local build
+                xml_lib_path = os.path.join(os.path.dirname(__file__), "build/xml.so")
+                if os.path.exists(xml_lib_path):
+                    return Language(xml_lib_path, 'xml')
+                else:
+                    logger.error("XML grammar not found in local build")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to load XML grammar: {str(e)}")
+                return None
+    
+    def _query_ast(self, ast_node: Node, query_string: str, language: str = 'python') -> List[Tuple[Node, Dict[str, Node]]]:
         """
         Execute a Tree-sitter query on an AST node and return captures.
         
         Args:
             ast_node (Node): Root AST node to query
             query_string (str): Tree-sitter query string
+            language (str): Language to use for the query (default: 'python')
             
         Returns:
             List[Tuple[Node, Dict[str, Node]]]: List of (match, captures) tuples
         """
-        if self.languages.get('python') is None:
-            logger.warning("Python language not available for queries")
+        if self.languages.get(language) is None:
+            logger.warning(f"{language} language not available for queries")
             return []
         
         try:
             # Create query object
-            query = self.languages['python'].query(query_string)
+            query = self.languages[language].query(query_string)
             
             # Execute query and return captures
             captures = query.captures(ast_node)
@@ -951,6 +1030,10 @@ class StaticAnalysisAgent:
                 findings = self.analyze_python_ast(ast_node)
             elif language == 'java':
                 findings = self.analyze_java_ast(ast_node)
+            elif language == 'kotlin':
+                findings = self.analyze_kotlin_ast(ast_node)
+            elif language == 'xml':
+                findings = self.analyze_xml_ast(ast_node)
             else:
                 findings = []
             
@@ -963,4 +1046,410 @@ class StaticAnalysisAgent:
             
         except Exception as e:
             logger.error(f"Error analyzing file {file_path}: {str(e)}")
-            return [] 
+            return []
+
+    def _check_kotlin_hardcoded_strings(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for hardcoded string literals in Kotlin code.
+        
+        This rule identifies string literals that should be moved to string resources.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for hardcoded strings
+        """
+        findings = []
+        
+        # Query for string literals but exclude very short ones or common patterns
+        query_string = """
+        (string_literal) @string
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'kotlin')
+            
+            for _, capture_dict in captures:
+                if 'string' in capture_dict:
+                    string_node = capture_dict['string']
+                    string_text = string_node.text.decode('utf-8', errors='ignore')
+                    
+                    # Only flag longer strings that look like UI text
+                    if (len(string_text) > 10 and 
+                        not string_text.startswith('""') and
+                        not any(pattern in string_text.lower() for pattern in ['test', 'debug', 'log', 'tag'])):
+                        findings.append({
+                            'rule_id': 'KOTLIN_HARDCODED_STRINGS',
+                            'message': f'Hardcoded string found: {string_text[:30]}...',
+                            'line': string_node.start_point[0] + 1,
+                            'column': string_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'android_best_practices',
+                            'suggestion': 'Move string literals to strings.xml resource file for internationalization'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_kotlin_hardcoded_strings: {str(e)}")
+        
+        return findings
+    
+    def _check_kotlin_null_safety_violations(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for potential null safety violations in Kotlin code.
+        
+        This rule identifies usage of !! operator which can cause KotlinNullPointerException.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for null safety violations
+        """
+        findings = []
+        
+        # Query for not-null assertion operator (!!)
+        query_string = """
+        (not_null_assertion) @not_null
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'kotlin')
+            
+            for _, capture_dict in captures:
+                if 'not_null' in capture_dict:
+                    not_null_node = capture_dict['not_null']
+                    findings.append({
+                        'rule_id': 'KOTLIN_NULL_SAFETY_VIOLATION',
+                        'message': 'Not-null assertion operator (!!) found - potential crash risk',
+                        'line': not_null_node.start_point[0] + 1,
+                        'column': not_null_node.start_point[1] + 1,
+                        'severity': 'Error',
+                        'category': 'null_safety',
+                        'suggestion': 'Consider using safe call operator (?.) or proper null checking instead of !!'
+                    })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_kotlin_null_safety_violations: {str(e)}")
+        
+        return findings
+    
+    def _check_kotlin_companion_object_constants(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for constants that should be in companion objects in Kotlin.
+        
+        This rule identifies top-level constants that might be better organized.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for constant organization
+        """
+        findings = []
+        
+        # Query for top-level val declarations with constant-like names
+        query_string = """
+        (property_declaration
+          modifiers: (modifiers) @mods
+          (variable_declaration
+            (simple_identifier) @name)) @prop
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'kotlin')
+            
+            for _, capture_dict in captures:
+                if 'name' in capture_dict and 'prop' in capture_dict:
+                    name_node = capture_dict['name']
+                    prop_node = capture_dict['prop']
+                    name_text = name_node.text.decode('utf-8', errors='ignore')
+                    
+                    # Check if it looks like a constant (all uppercase or starts with uppercase)
+                    if name_text.isupper() or (name_text and name_text[0].isupper()):
+                        findings.append({
+                            'rule_id': 'KOTLIN_COMPANION_OBJECT_CONSTANTS',
+                            'message': f'Constant "{name_text}" could be organized in a companion object',
+                            'line': prop_node.start_point[0] + 1,
+                            'column': prop_node.start_point[1] + 1,
+                            'severity': 'Info',
+                            'category': 'code_organization',
+                            'suggestion': f'Consider moving constant "{name_text}" to a companion object for better organization'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_kotlin_companion_object_constants: {str(e)}")
+        
+        return findings
+    
+    def _check_kotlin_android_logging(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for Android logging best practices in Kotlin.
+        
+        This rule identifies Log.d/v calls that might be left in production code.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for logging issues
+        """
+        findings = []
+        
+        # Query for Log.d or Log.v calls
+        query_string = """
+        (call_expression
+          (navigation_expression
+            (simple_identifier) @log_class
+            (simple_identifier) @log_method)) @call
+        (#eq? @log_class "Log")
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'kotlin')
+            
+            for _, capture_dict in captures:
+                if 'log_method' in capture_dict and 'call' in capture_dict:
+                    method_node = capture_dict['log_method']
+                    call_node = capture_dict['call']
+                    method_name = method_node.text.decode('utf-8', errors='ignore')
+                    
+                    if method_name in ['d', 'v']:  # Debug and Verbose logs
+                        findings.append({
+                            'rule_id': 'KOTLIN_ANDROID_LOGGING',
+                            'message': f'Log.{method_name}() found - ensure debug logs are stripped in release builds',
+                            'line': call_node.start_point[0] + 1,
+                            'column': call_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'android_logging',
+                            'suggestion': f'Ensure Log.{method_name}() calls are removed or disabled in production builds'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_kotlin_android_logging: {str(e)}")
+        
+        return findings
+    
+    def analyze_kotlin_ast(self, ast_node: Node) -> List[Dict]:
+        """
+        Analyze a Kotlin AST and return all findings from static analysis rules.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: Combined list of findings from all Kotlin rules
+        """
+        findings = []
+        
+        # Execute all Kotlin static analysis rules
+        rule_methods = [
+            self._check_kotlin_hardcoded_strings,
+            self._check_kotlin_null_safety_violations,
+            self._check_kotlin_companion_object_constants,
+            self._check_kotlin_android_logging
+        ]
+        
+        for rule_method in rule_methods:
+            try:
+                rule_findings = rule_method(ast_node)
+                findings.extend(rule_findings)
+            except Exception as e:
+                logger.error(f"Error executing Kotlin rule: {str(e)}")
+        
+        return findings
+    
+    def _check_android_manifest_permissions(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for potentially dangerous permissions in Android manifest.
+        
+        This rule identifies high-risk permissions that need careful consideration.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for dangerous permissions
+        """
+        findings = []
+        
+        # Query for uses-permission elements
+        query_string = """
+        (element
+          (start_tag
+            (name) @tag_name
+            (attribute
+              (attribute_name) @attr_name
+              (quoted_attribute_value) @attr_value))) @element
+        (#eq? @tag_name "uses-permission")
+        (#eq? @attr_name "android:name")
+        """
+        
+        # List of potentially dangerous permissions
+        dangerous_permissions = [
+            'android.permission.CAMERA',
+            'android.permission.READ_CONTACTS',
+            'android.permission.WRITE_CONTACTS',
+            'android.permission.ACCESS_FINE_LOCATION',
+            'android.permission.ACCESS_COARSE_LOCATION',
+            'android.permission.RECORD_AUDIO',
+            'android.permission.READ_PHONE_STATE',
+            'android.permission.READ_SMS',
+            'android.permission.WRITE_EXTERNAL_STORAGE'
+        ]
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'xml')
+            
+            for _, capture_dict in captures:
+                if 'attr_value' in capture_dict and 'element' in capture_dict:
+                    value_node = capture_dict['attr_value']
+                    element_node = capture_dict['element']
+                    permission_name = value_node.text.decode('utf-8', errors='ignore').strip('"\'')
+                    
+                    if permission_name in dangerous_permissions:
+                        findings.append({
+                            'rule_id': 'ANDROID_DANGEROUS_PERMISSION',
+                            'message': f'Dangerous permission declared: {permission_name}',
+                            'line': element_node.start_point[0] + 1,
+                            'column': element_node.start_point[1] + 1,
+                            'severity': 'Warning',
+                            'category': 'android_security',
+                            'suggestion': f'Ensure {permission_name} is necessary and handle runtime permission requests properly'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_android_manifest_permissions: {str(e)}")
+        
+        return findings
+    
+    def _check_android_layout_performance(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for potential performance issues in Android layouts.
+        
+        This rule identifies layout patterns that might impact performance.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for layout performance issues
+        """
+        findings = []
+        
+        # Query for nested LinearLayouts
+        query_string = """
+        (element
+          (start_tag
+            (name) @outer_tag)
+          (element
+            (start_tag
+              (name) @inner_tag))) @outer_element
+        (#eq? @outer_tag "LinearLayout")
+        (#eq? @inner_tag "LinearLayout")
+        """
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'xml')
+            
+            for _, capture_dict in captures:
+                if 'outer_element' in capture_dict:
+                    element_node = capture_dict['outer_element']
+                    findings.append({
+                        'rule_id': 'ANDROID_NESTED_LINEARLAYOUT',
+                        'message': 'Nested LinearLayouts found - consider using ConstraintLayout for better performance',
+                        'line': element_node.start_point[0] + 1,
+                        'column': element_node.start_point[1] + 1,
+                        'severity': 'Warning',
+                        'category': 'android_performance',
+                        'suggestion': 'Replace nested LinearLayouts with ConstraintLayout to reduce view hierarchy depth'
+                    })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_android_layout_performance: {str(e)}")
+        
+        return findings
+    
+    def _check_android_hardcoded_sizes(self, ast_node: Node) -> List[Dict]:
+        """
+        Check for hardcoded sizes in Android layouts.
+        
+        This rule identifies hardcoded dp/px values that should use dimension resources.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: List of findings for hardcoded sizes
+        """
+        findings = []
+        
+        # Query for attributes with hardcoded size values
+        query_string = """
+        (attribute
+          (attribute_name) @attr_name
+          (quoted_attribute_value) @attr_value) @attribute
+        """
+        
+        size_attributes = [
+            'android:layout_width', 'android:layout_height',
+            'android:textSize', 'android:padding', 'android:margin',
+            'android:paddingTop', 'android:paddingBottom', 'android:paddingLeft', 'android:paddingRight',
+            'android:marginTop', 'android:marginBottom', 'android:marginLeft', 'android:marginRight'
+        ]
+        
+        try:
+            captures = self._query_ast(ast_node, query_string, 'xml')
+            
+            for _, capture_dict in captures:
+                if 'attr_name' in capture_dict and 'attr_value' in capture_dict:
+                    name_node = capture_dict['attr_name']
+                    value_node = capture_dict['attr_value']
+                    attr_name = name_node.text.decode('utf-8', errors='ignore')
+                    attr_value = value_node.text.decode('utf-8', errors='ignore').strip('"\'')
+                    
+                    if (attr_name in size_attributes and 
+                        ('dp' in attr_value or 'px' in attr_value or 'sp' in attr_value) and
+                        not attr_value.startswith('@')):  # Not already a resource reference
+                        findings.append({
+                            'rule_id': 'ANDROID_HARDCODED_SIZE',
+                            'message': f'Hardcoded size value found: {attr_name}="{attr_value}"',
+                            'line': value_node.start_point[0] + 1,
+                            'column': value_node.start_point[1] + 1,
+                            'severity': 'Info',
+                            'category': 'android_resources',
+                            'suggestion': f'Move hardcoded size "{attr_value}" to dimension resources (dimens.xml)'
+                        })
+            
+        except Exception as e:
+            logger.error(f"Error in _check_android_hardcoded_sizes: {str(e)}")
+        
+        return findings
+    
+    def analyze_xml_ast(self, ast_node: Node) -> List[Dict]:
+        """
+        Analyze an XML AST (Android layouts, manifests) and return all findings.
+        
+        Args:
+            ast_node (Node): Root AST node to analyze
+            
+        Returns:
+            List[Dict]: Combined list of findings from all XML/Android rules
+        """
+        findings = []
+        
+        # Execute all XML/Android static analysis rules
+        rule_methods = [
+            self._check_android_manifest_permissions,
+            self._check_android_layout_performance,
+            self._check_android_hardcoded_sizes
+        ]
+        
+        for rule_method in rule_methods:
+            try:
+                rule_findings = rule_method(ast_node)
+                findings.extend(rule_findings)
+            except Exception as e:
+                logger.error(f"Error executing XML/Android rule: {str(e)}")
+        
+        return findings 

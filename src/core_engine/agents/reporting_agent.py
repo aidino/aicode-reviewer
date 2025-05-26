@@ -512,47 +512,78 @@ Please check the logs for more details and try again.
             return diagrams
         
         try:
-            # Extract modified classes from static findings for highlighting
+            # Extract modified classes and functions from static findings for highlighting
             modified_classes = set()
+            modified_functions = set()
+            modified_methods = set()
+            
             for finding in static_findings:
-                # Try to extract class names from file paths or findings
-                # This is a simplified approach - could be enhanced
+                # Try to extract class/function names from file paths or findings
                 file_path = finding.get("file", "")
-                if file_path.endswith(".py"):
-                    # Simple heuristic: if finding mentions a class, mark it as modified
-                    message = finding.get("message", "").lower()
-                    if "class" in message:
-                        # Extract class name if possible (simplified)
-                        pass
+                message = finding.get("message", "").lower()
+                
+                # Extract function names for sequence diagrams
+                if "function" in message or "method" in message:
+                    # Simple heuristic to extract function/method names
+                    # This could be enhanced with more sophisticated parsing
+                    words = message.split()
+                    for i, word in enumerate(words):
+                        if word in ["function", "method"] and i + 1 < len(words):
+                            func_name = words[i + 1].strip("'\"(),:")
+                            if file_path.endswith(".py"):
+                                modified_functions.add(func_name)
+                            elif file_path.endswith(".java"):
+                                modified_methods.add(func_name)
+                
+                # Extract class names for class diagrams
+                if "class" in message:
+                    words = message.split()
+                    for i, word in enumerate(words):
+                        if word == "class" and i + 1 < len(words):
+                            class_name = words[i + 1].strip("'\"(),:")
+                            modified_classes.add(class_name)
             
-            changes = {"modified_classes": list(modified_classes)} if modified_classes else None
+            changes = {
+                "modified_classes": list(modified_classes),
+                "modified_functions": list(modified_functions),
+                "added_functions": [],  # Could be enhanced to detect added functions
+                "modified_methods": list(modified_methods),
+                "added_methods": []  # Could be enhanced to detect added methods
+            }
             
-            # Generate class diagram for Python files
+            # Generate diagrams for Python files
             python_files = {path: ast_data for path, ast_data in code_files.items() 
                            if path.endswith('.py')}
             
             if python_files:
-                logger.info(f"Generating class diagram for {len(python_files)} Python files")
+                logger.info(f"Generating diagrams for {len(python_files)} Python files")
                 
-                # Generate PlantUML diagram
-                plantuml_diagram = self.diagramming_engine.generate_class_diagram(
+                # Generate class diagrams
+                plantuml_class_diagram = self.diagramming_engine.generate_class_diagram(
                     python_files, 'python', changes
                 )
                 
-                # Generate Mermaid diagram
                 self.diagramming_engine.set_diagram_format('mermaid')
-                mermaid_diagram = self.diagramming_engine.generate_class_diagram(
+                mermaid_class_diagram = self.diagramming_engine.generate_class_diagram(
                     python_files, 'python', changes
                 )
                 
-                # Reset to default format
-                self.diagramming_engine.set_diagram_format('plantuml')
+                # Generate sequence diagrams
+                plantuml_sequence_diagram = self.diagramming_engine.generate_sequence_diagram(
+                    python_files, 'python', changes
+                )
                 
+                self.diagramming_engine.set_diagram_format('plantuml')  # Reset to default
+                mermaid_sequence_diagram = self.diagramming_engine.generate_sequence_diagram(
+                    python_files, 'python', changes
+                )
+                
+                # Add class diagrams
                 diagrams.append({
                     'type': 'class_diagram',
                     'language': 'python',
                     'format': 'plantuml',
-                    'content': plantuml_diagram,
+                    'content': plantuml_class_diagram,
                     'files_included': list(python_files.keys()),
                     'generated_at': datetime.now().isoformat()
                 })
@@ -561,12 +592,92 @@ Please check the logs for more details and try again.
                     'type': 'class_diagram',
                     'language': 'python', 
                     'format': 'mermaid',
-                    'content': mermaid_diagram,
+                    'content': mermaid_class_diagram,
                     'files_included': list(python_files.keys()),
                     'generated_at': datetime.now().isoformat()
                 })
                 
-                logger.info(f"Generated {len(diagrams)} diagrams")
+                # Add sequence diagrams
+                diagrams.append({
+                    'type': 'sequence_diagram',
+                    'language': 'python',
+                    'format': 'plantuml',
+                    'content': plantuml_sequence_diagram,
+                    'files_included': list(python_files.keys()),
+                    'pr_changes': changes,
+                    'generated_at': datetime.now().isoformat()
+                })
+                
+                diagrams.append({
+                    'type': 'sequence_diagram',
+                    'language': 'python',
+                    'format': 'mermaid',
+                    'content': mermaid_sequence_diagram,
+                    'files_included': list(python_files.keys()),
+                    'pr_changes': changes,
+                    'generated_at': datetime.now().isoformat()
+                })
+            
+            # Generate diagrams for Java files
+            java_files = {path: ast_data for path, ast_data in code_files.items() 
+                         if path.endswith('.java')}
+            
+            if java_files:
+                logger.info(f"Generating diagrams for {len(java_files)} Java files")
+                
+                # Generate class diagrams (if supported)
+                try:
+                    plantuml_java_class_diagram = self.diagramming_engine.generate_class_diagram(
+                        java_files, 'java', changes
+                    )
+                    
+                    diagrams.append({
+                        'type': 'class_diagram',
+                        'language': 'java',
+                        'format': 'plantuml',
+                        'content': plantuml_java_class_diagram,
+                        'files_included': list(java_files.keys()),
+                        'generated_at': datetime.now().isoformat()
+                    })
+                except Exception as e:
+                    logger.warning(f"Java class diagrams not yet supported: {str(e)}")
+                
+                # Generate sequence diagrams
+                try:
+                    plantuml_java_sequence_diagram = self.diagramming_engine.generate_sequence_diagram(
+                        java_files, 'java', changes
+                    )
+                    
+                    self.diagramming_engine.set_diagram_format('mermaid')
+                    mermaid_java_sequence_diagram = self.diagramming_engine.generate_sequence_diagram(
+                        java_files, 'java', changes
+                    )
+                    self.diagramming_engine.set_diagram_format('plantuml')  # Reset
+                    
+                    diagrams.append({
+                        'type': 'sequence_diagram',
+                        'language': 'java',
+                        'format': 'plantuml',
+                        'content': plantuml_java_sequence_diagram,
+                        'files_included': list(java_files.keys()),
+                        'pr_changes': changes,
+                        'generated_at': datetime.now().isoformat()
+                    })
+                    
+                    diagrams.append({
+                        'type': 'sequence_diagram',
+                        'language': 'java',
+                        'format': 'mermaid',
+                        'content': mermaid_java_sequence_diagram,
+                        'files_included': list(java_files.keys()),
+                        'pr_changes': changes,
+                        'generated_at': datetime.now().isoformat()
+                    })
+                
+                except Exception as e:
+                    logger.error(f"Error generating Java sequence diagrams: {str(e)}")
+                
+            logger.info(f"Generated {len(diagrams)} diagrams total")
             
         except Exception as e:
             logger.error(f"Error generating diagrams: {str(e)}")

@@ -819,4 +819,311 @@ def test_analyze_ast_unsupported_language(static_analysis_agent_with_java):
 def test_analyze_ast_no_ast(static_analysis_agent_with_java):
     """Test analyze_ast with no AST."""
     findings = static_analysis_agent_with_java.analyze_ast(None, 'Test.java', 'java')
-    assert len(findings) == 0 
+    assert len(findings) == 0
+
+# Test cases for Kotlin and XML support
+class TestKotlinXMLSupport:
+    """Test cases for Kotlin and XML static analysis support."""
+    
+    @pytest.fixture
+    def mock_kotlin_language(self):
+        """Mock Kotlin language for tree-sitter."""
+        mock_lang = Mock()
+        mock_query = Mock()
+        mock_lang.query.return_value = mock_query
+        mock_query.captures.return_value = []
+        return mock_lang
+    
+    @pytest.fixture
+    def mock_xml_language(self):
+        """Mock XML language for tree-sitter."""
+        mock_lang = Mock()
+        mock_query = Mock()
+        mock_lang.query.return_value = mock_query
+        mock_query.captures.return_value = []
+        return mock_lang
+    
+    @pytest.fixture
+    def sample_kotlin_ast_node(self):
+        """Create a sample Kotlin AST node for testing."""
+        mock_node = Mock()
+        mock_node.start_point = (0, 0)
+        mock_node.end_point = (10, 0)
+        mock_node.text = b"class MainActivity : AppCompatActivity()"
+        return mock_node
+    
+    @pytest.fixture
+    def sample_xml_ast_node(self):
+        """Create a sample XML AST node for testing."""
+        mock_node = Mock()
+        mock_node.start_point = (0, 0)
+        mock_node.end_point = (5, 0)
+        mock_node.text = b"<LinearLayout></LinearLayout>"
+        return mock_node
+    
+    def test_kotlin_language_initialization(self, mock_kotlin_language):
+        """Test Kotlin language initialization."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            with patch.object(StaticAnalysisAgent, '_initialize_python_language', return_value=None), \
+                 patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=None), \
+                 patch.object(StaticAnalysisAgent, '_initialize_kotlin_language', return_value=mock_kotlin_language), \
+                 patch.object(StaticAnalysisAgent, '_initialize_xml_language', return_value=None):
+                agent = StaticAnalysisAgent()
+                assert 'kotlin' in agent.supported_languages
+                assert agent.languages['kotlin'] == mock_kotlin_language
+    
+    def test_xml_language_initialization(self, mock_xml_language):
+        """Test XML language initialization."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            with patch.object(StaticAnalysisAgent, '_initialize_python_language', return_value=None), \
+                 patch.object(StaticAnalysisAgent, '_initialize_java_language', return_value=None), \
+                 patch.object(StaticAnalysisAgent, '_initialize_kotlin_language', return_value=None), \
+                 patch.object(StaticAnalysisAgent, '_initialize_xml_language', return_value=mock_xml_language):
+                agent = StaticAnalysisAgent()
+                assert 'xml' in agent.supported_languages
+                assert agent.languages['xml'] == mock_xml_language
+    
+    def test_analyze_kotlin_ast(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test analyzing Kotlin AST."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            agent.supported_languages = ['kotlin']
+            
+            with patch.object(agent, '_check_kotlin_hardcoded_strings', return_value=[]), \
+                 patch.object(agent, '_check_kotlin_null_safety_violations', return_value=[]), \
+                 patch.object(agent, '_check_kotlin_companion_object_constants', return_value=[]), \
+                 patch.object(agent, '_check_kotlin_android_logging', return_value=[]):
+                
+                result = agent.analyze_kotlin_ast(sample_kotlin_ast_node)
+                
+                assert isinstance(result, list)
+                assert len(result) == 0  # No findings from mocked rules
+    
+    def test_analyze_xml_ast(self, mock_xml_language, sample_xml_ast_node):
+        """Test analyzing XML AST."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['xml'] = mock_xml_language
+            agent.supported_languages = ['xml']
+            
+            with patch.object(agent, '_check_android_manifest_permissions', return_value=[]), \
+                 patch.object(agent, '_check_android_layout_performance', return_value=[]), \
+                 patch.object(agent, '_check_android_hardcoded_sizes', return_value=[]):
+                
+                result = agent.analyze_xml_ast(sample_xml_ast_node)
+                
+                assert isinstance(result, list)
+                assert len(result) == 0  # No findings from mocked rules
+    
+    def test_check_kotlin_hardcoded_strings_found(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test Kotlin hardcoded strings rule when violations are found."""
+        string_node = Mock()
+        string_node.start_point = (5, 10)
+        string_node.text = b'"Hello World"'
+        mock_captures = [(sample_kotlin_ast_node, {'string': string_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_kotlin_hardcoded_strings(sample_kotlin_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'KOTLIN_HARDCODED_STRINGS'
+                assert findings[0]['line'] == 6
+                assert findings[0]['severity'] == 'Warning'
+                assert 'hardcoded string' in findings[0]['message'].lower()
+    
+    def test_check_kotlin_null_safety_violations_found(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test Kotlin null safety violations rule when !! operator is found."""
+        operator_node = Mock()
+        operator_node.start_point = (8, 15)
+        mock_captures = [(sample_kotlin_ast_node, {'not_null': operator_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_kotlin_null_safety_violations(sample_kotlin_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'KOTLIN_NULL_SAFETY_VIOLATION'
+                assert findings[0]['line'] == 9
+                assert findings[0]['severity'] == 'Error'
+                assert 'Not-null assertion operator' in findings[0]['message']
+    
+    def test_check_kotlin_companion_object_constants_found(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test Kotlin companion object constants rule."""
+        name_node = Mock()
+        name_node.start_point = (12, 8)
+        name_node.text = b'MY_CONSTANT'
+        prop_node = Mock()
+        prop_node.start_point = (12, 8)
+        mock_captures = [(sample_kotlin_ast_node, {'name': name_node, 'prop': prop_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_kotlin_companion_object_constants(sample_kotlin_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'KOTLIN_COMPANION_OBJECT_CONSTANTS'
+                assert findings[0]['line'] == 13
+                assert findings[0]['severity'] == 'Info'
+                assert 'companion object' in findings[0]['message'].lower()
+    
+    def test_check_kotlin_android_logging_found(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test Kotlin Android logging rule when Log.d/v calls are found."""
+        log_method_node = Mock()
+        log_method_node.text = b'd'
+        call_node = Mock()
+        call_node.start_point = (20, 4)
+        mock_captures = [(sample_kotlin_ast_node, {'log_method': log_method_node, 'call': call_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_kotlin_android_logging(sample_kotlin_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'KOTLIN_ANDROID_LOGGING'
+                assert findings[0]['line'] == 21
+                assert findings[0]['severity'] == 'Warning'
+                assert 'Log.d()' in findings[0]['message']
+    
+    def test_check_android_manifest_permissions_found(self, mock_xml_language, sample_xml_ast_node):
+        """Test Android manifest permissions rule when dangerous permissions are found."""
+        attr_value_node = Mock()
+        attr_value_node.text = b'"android.permission.CAMERA"'
+        element_node = Mock()
+        element_node.start_point = (3, 4)
+        mock_captures = [(sample_xml_ast_node, {'attr_value': attr_value_node, 'element': element_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['xml'] = mock_xml_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_android_manifest_permissions(sample_xml_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'ANDROID_DANGEROUS_PERMISSION'
+                assert findings[0]['line'] == 4
+                assert findings[0]['severity'] == 'Warning'
+                assert 'dangerous permission' in findings[0]['message'].lower()
+    
+    def test_check_android_layout_performance_found(self, mock_xml_language, sample_xml_ast_node):
+        """Test Android layout performance rule when nested LinearLayouts are found."""
+        outer_element_node = Mock()
+        outer_element_node.start_point = (7, 8)
+        mock_captures = [(sample_xml_ast_node, {'outer_element': outer_element_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['xml'] = mock_xml_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_android_layout_performance(sample_xml_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'ANDROID_NESTED_LINEARLAYOUT'
+                assert findings[0]['line'] == 8
+                assert findings[0]['severity'] == 'Warning'
+                assert 'Nested LinearLayouts' in findings[0]['message']
+    
+    def test_check_android_hardcoded_sizes_found(self, mock_xml_language, sample_xml_ast_node):
+        """Test Android hardcoded sizes rule when hardcoded dp/px values are found."""
+        attr_name_node = Mock()
+        attr_name_node.text = b'android:layout_width'
+        attr_value_node = Mock()
+        attr_value_node.start_point = (11, 12)
+        attr_value_node.text = b'"100dp"'
+        mock_captures = [(sample_xml_ast_node, {'attr_name': attr_name_node, 'attr_value': attr_value_node})]
+        
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['xml'] = mock_xml_language
+            
+            with patch.object(agent, '_query_ast', return_value=mock_captures):
+                findings = agent._check_android_hardcoded_sizes(sample_xml_ast_node)
+                
+                assert len(findings) == 1
+                assert findings[0]['rule_id'] == 'ANDROID_HARDCODED_SIZE'
+                assert findings[0]['line'] == 12
+                assert findings[0]['severity'] == 'Info'
+                assert 'hardcoded size' in findings[0]['message'].lower()
+    
+    def test_analyze_ast_kotlin_dispatch(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test that analyze_ast correctly dispatches to Kotlin analysis."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            agent.supported_languages = ['python', 'kotlin']
+            
+            with patch.object(agent, 'analyze_kotlin_ast', return_value=[]) as mock_analyze:
+                result = agent.analyze_ast(sample_kotlin_ast_node, "/test/file.kt", "kotlin")
+                
+                assert result == []
+                mock_analyze.assert_called_once_with(sample_kotlin_ast_node)
+    
+    def test_analyze_ast_xml_dispatch(self, mock_xml_language, sample_xml_ast_node):
+        """Test that analyze_ast correctly dispatches to XML analysis."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['xml'] = mock_xml_language
+            agent.supported_languages = ['python', 'xml']
+            
+            with patch.object(agent, 'analyze_xml_ast', return_value=[]) as mock_analyze:
+                result = agent.analyze_ast(sample_xml_ast_node, "/test/file.xml", "xml")
+                
+                assert result == []
+                mock_analyze.assert_called_once_with(sample_xml_ast_node)
+    
+    def test_kotlin_rules_no_findings(self, mock_kotlin_language, sample_kotlin_ast_node):
+        """Test all Kotlin rules when no violations are found."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            
+            with patch.object(agent, '_query_ast', return_value=[]):
+                # Test each rule individually
+                assert agent._check_kotlin_hardcoded_strings(sample_kotlin_ast_node) == []
+                assert agent._check_kotlin_null_safety_violations(sample_kotlin_ast_node) == []
+                assert agent._check_kotlin_companion_object_constants(sample_kotlin_ast_node) == []
+                assert agent._check_kotlin_android_logging(sample_kotlin_ast_node) == []
+    
+    def test_xml_rules_no_findings(self, mock_xml_language, sample_xml_ast_node):
+        """Test all XML rules when no violations are found."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['xml'] = mock_xml_language
+            
+            with patch.object(agent, '_query_ast', return_value=[]):
+                # Test each rule individually
+                assert agent._check_android_manifest_permissions(sample_xml_ast_node) == []
+                assert agent._check_android_layout_performance(sample_xml_ast_node) == []
+                assert agent._check_android_hardcoded_sizes(sample_xml_ast_node) == []
+    
+    def test_kotlin_xml_error_handling(self, mock_kotlin_language, mock_xml_language, sample_kotlin_ast_node, sample_xml_ast_node):
+        """Test error handling in Kotlin and XML analysis."""
+        with patch('src.core_engine.agents.static_analysis_agent.tree_sitter'):
+            agent = StaticAnalysisAgent()
+            agent.languages['kotlin'] = mock_kotlin_language
+            agent.languages['xml'] = mock_xml_language
+            
+            # Test Kotlin error handling
+            with patch.object(agent, '_check_kotlin_hardcoded_strings', side_effect=Exception("Test error")):
+                result = agent.analyze_kotlin_ast(sample_kotlin_ast_node)
+                assert isinstance(result, list)  # Should handle error gracefully
+            
+            # Test XML error handling
+            with patch.object(agent, '_check_android_manifest_permissions', side_effect=Exception("Test error")):
+                result = agent.analyze_xml_ast(sample_xml_ast_node)
+                assert isinstance(result, list)  # Should handle error gracefully 

@@ -41,11 +41,12 @@ class CodeFetcherAgent:
         self.supported_extensions = {
             'python': ['.py', '.pyx', '.pyi'],
             'java': ['.java'],
-            'kotlin': ['.kt', '.kts']
+            'kotlin': ['.kt', '.kts'],
+            'android_xml': ['.xml']  # Android layout, manifest, resources
         }
         
         # Get supported languages from settings
-        self.supported_languages = getattr(settings, 'supported_languages', ['python', 'java', 'kotlin'])
+        self.supported_languages = getattr(settings, 'supported_languages', ['python', 'java', 'kotlin', 'android_xml'])
         
         logger.info(f"CodeFetcherAgent initialized with languages: {self.supported_languages}")
     
