@@ -1,0 +1,106 @@
+{
+  "scan_info": {
+    "scan_id": "demo_scan_2025_01_27",
+    "repository": "https://github.com/example/ai-code-reviewer-demo",
+    "pr_id": 42,
+    "branch": "feature/reporting-improvements",
+    "scan_type": "pr",
+    "timestamp": "2025-05-26T13:25:33.018187",
+    "report_version": "1.0.0"
+  },
+  "summary": {
+    "total_findings": 5,
+    "severity_breakdown": {
+      "Error": 1,
+      "Warning": 2,
+      "Info": 2,
+      "Unknown": 0
+    },
+    "category_breakdown": {
+      "debugging": 1,
+      "logging": 1,
+      "complexity": 2,
+      "imports": 1
+    },
+    "scan_status": "completed",
+    "has_llm_analysis": true
+  },
+  "static_analysis_findings": [
+    {
+      "rule_id": "PDB_TRACE_FOUND",
+      "message": "pdb.set_trace() found - remove before production",
+      "line": 25,
+      "column": 4,
+      "severity": "Warning",
+      "category": "debugging",
+      "file": "src/api/handlers.py",
+      "suggestion": "Remove pdb.set_trace() before deploying to production"
+    },
+    {
+      "rule_id": "PRINT_STATEMENT_FOUND",
+      "message": "print() statement found - use logging instead",
+      "line": 42,
+      "column": 8,
+      "severity": "Info",
+      "category": "logging",
+      "file": "src/utils/helpers.py",
+      "suggestion": "Replace print() with proper logging (logger.info, logger.debug)"
+    },
+    {
+      "rule_id": "FUNCTION_TOO_LONG",
+      "message": "Function 'process_data' is 85 lines long (max 50)",
+      "line": 15,
+      "column": 1,
+      "severity": "Warning",
+      "category": "complexity",
+      "file": "src/data/processor.py",
+      "suggestion": "Break down large function into smaller, focused functions"
+    },
+    {
+      "rule_id": "POTENTIALLY_UNUSED_IMPORT",
+      "message": "Import 'unused_module' appears to be unused",
+      "line": 3,
+      "column": 1,
+      "severity": "Info",
+      "category": "imports",
+      "file": "src/main.py",
+      "suggestion": "Remove unused import to clean up code"
+    },
+    {
+      "rule_id": "CLASS_TOO_LONG",
+      "message": "Class 'DataManager' is 250 lines long (max 200)",
+      "line": 8,
+      "column": 1,
+      "severity": "Error",
+      "category": "complexity",
+      "file": "src/data/manager.py",
+      "suggestion": "Split large class into multiple focused classes"
+    }
+  ],
+  "llm_review": {
+    "insights": "# AI Code Review Analysis\n\n## Code Quality Assessment\n- The overall code structure shows good organization with clear separation of concerns\n- Function and variable naming follows Python conventions consistently\n- Code readability is generally good with appropriate comments and docstrings\n\n## Security Considerations\n- **Critical**: Debugging statements detected that must be removed before production deployment\n- Remove all pdb.set_trace() calls to prevent security vulnerabilities\n- Consider implementing proper logging levels for different environments\n- No obvious SQL injection or XSS vulnerabilities detected in the analyzed code\n\n## Performance Analysis  \n- **Performance Concern**: Large functions and classes detected that may impact maintainability\n- The 85-line function 'process_data' should be refactored for better performance and readability\n- Consider implementing caching mechanisms for frequently accessed data\n- Review database query patterns for potential optimization opportunities\n\n## Best Practices\n- **Logging Issues**: Print statements detected that should use proper logging framework\n- Implement structured logging with appropriate log levels (DEBUG, INFO, WARNING, ERROR)\n- Consider using configuration files for environment-specific settings\n- Follow PEP 8 style guidelines consistently across the codebase\n\n## Architectural Insights\n- Current code shows signs of growing complexity that may benefit from refactoring\n- Consider implementing design patterns like Strategy or Factory for better maintainability\n- The large DataManager class suggests a need for Single Responsibility Principle application\n- Evaluate opportunities for dependency injection to improve testability\n\n## Specific Recommendations\n1. **Immediate**: Remove all debugging statements (pdb.set_trace) before production\n2. **High Priority**: Implement proper logging framework to replace print statements  \n3. **Medium Priority**: Refactor large functions (>50 lines) into smaller, focused components\n4. **Medium Priority**: Split large classes (>200 lines) following Single Responsibility Principle\n5. **Low Priority**: Clean up unused imports to improve code clarity\n6. **Code Quality**: Add comprehensive unit tests for all new functionality\n7. **Documentation**: Ensure all public functions have proper docstrings\n8. **Configuration**: Implement environment-specific configuration management",
+    "has_content": true,
+    "sections": {
+      "general": "# AI Code Review Analysis",
+      "code_quality_assessment": "- The overall code structure shows good organization with clear separation of concerns\n- Function and variable naming follows Python conventions consistently\n- Code readability is generally good with appropriate comments and docstrings",
+      "security_considerations": "- **Critical**: Debugging statements detected that must be removed before production deployment\n- Remove all pdb.set_trace() calls to prevent security vulnerabilities\n- Consider implementing proper logging levels for different environments\n- No obvious SQL injection or XSS vulnerabilities detected in the analyzed code",
+      "performance_analysis": "- **Performance Concern**: Large functions and classes detected that may impact maintainability\n- The 85-line function 'process_data' should be refactored for better performance and readability\n- Consider implementing caching mechanisms for frequently accessed data\n- Review database query patterns for potential optimization opportunities",
+      "best_practices": "- **Logging Issues**: Print statements detected that should use proper logging framework\n- Implement structured logging with appropriate log levels (DEBUG, INFO, WARNING, ERROR)\n- Consider using configuration files for environment-specific settings\n- Follow PEP 8 style guidelines consistently across the codebase",
+      "architectural_insights": "- Current code shows signs of growing complexity that may benefit from refactoring\n- Consider implementing design patterns like Strategy or Factory for better maintainability\n- The large DataManager class suggests a need for Single Responsibility Principle application\n- Evaluate opportunities for dependency injection to improve testability",
+      "specific_recommendations": "1. **Immediate**: Remove all debugging statements (pdb.set_trace) before production\n2. **High Priority**: Implement proper logging framework to replace print statements\n3. **Medium Priority**: Refactor large functions (>50 lines) into smaller, focused components\n4. **Medium Priority**: Split large classes (>200 lines) following Single Responsibility Principle\n5. **Low Priority**: Clean up unused imports to improve code clarity\n6. **Code Quality**: Add comprehensive unit tests for all new functionality\n7. **Documentation**: Ensure all public functions have proper docstrings\n8. **Configuration**: Implement environment-specific configuration management"
+    },
+    "word_count": 313,
+    "line_count": 40
+  },
+  "diagrams": [],
+  "metadata": {
+    "agent_versions": {
+      "reporting_agent": "1.0.0",
+      "static_analysis": "1.0.0",
+      "llm_orchestrator": "1.0.0"
+    },
+    "generation_time": "2025-05-26T13:25:33.018223",
+    "total_files_analyzed": 12,
+    "successful_parses": 11
+  }
+}

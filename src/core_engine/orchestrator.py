@@ -538,7 +538,7 @@ def reporting_node(state: GraphState) -> Dict[str, Any]:
     """
     Node for generating the final code review report.
     
-    Aggregates all findings into a structured report.
+    Uses ReportingAgent to aggregate all findings into structured and formatted reports.
     
     Args:
         state (GraphState): Current workflow state
@@ -548,50 +548,59 @@ def reporting_node(state: GraphState) -> Dict[str, Any]:
     """
     logger.info("Generating code review report")
     
-    # TODO: Integrate with ReportingAgent
-    # - Aggregate static analysis and LLM findings
-    # - Generate structured report data
-    # - Create Markdown/HTML formatted reports
-    # - Include actionable recommendations
-    # - Generate summary statistics
-    # - Prepare data for Web App display
-    
     try:
+        # Import ReportingAgent
+        from src.core_engine.agents.reporting_agent import ReportingAgent
+        
         static_findings = state.get("static_analysis_findings", [])
         llm_insights = state.get("llm_insights", "")
         workflow_metadata = state.get("workflow_metadata", {})
         
-        # Generate comprehensive report
-        report_data = {
-            "summary": {
-                "total_issues": len(static_findings),
-                "scan_type": workflow_metadata.get("scan_type", "unknown"),
-                "repository": state.get("repo_url", ""),
-                "pr_id": state.get("pr_id")
-            },
-            "static_analysis": {
-                "findings": static_findings,
-                "categories": {
-                    "warnings": len([f for f in static_findings if f.get("severity") == "warning"]),
-                    "info": len([f for f in static_findings if f.get("severity") == "info"]),
-                    "errors": len([f for f in static_findings if f.get("severity") == "error"])
-                }
-            },
-            "llm_analysis": {
-                "insights": llm_insights,
-                "recommendations": "# TODO: Extract structured recommendations from LLM insights"
-            },
-            "metadata": {
-                **workflow_metadata,
-                "completion_time": "timestamp_placeholder"
-            }
+        # Prepare scan details for the report
+        scan_details = {
+            "repo_url": state.get("repo_url", ""),
+            "pr_id": state.get("pr_id"),
+            "branch": workflow_metadata.get("branch"),
+            "scan_type": workflow_metadata.get("scan_type", "project"),
+            "total_files": workflow_metadata.get("total_files", 0),
+            "successful_parses": workflow_metadata.get("successful_parses", 0),
+            "scan_id": f"scan_{int(__import__('time').time())}"
         }
         
+        # Initialize ReportingAgent
+        reporting_agent = ReportingAgent()
+        
+        logger.info(f"Generating report for {len(static_findings)} findings")
+        
+        # Generate structured report data
+        report_data = reporting_agent.generate_report_data(
+            static_findings=static_findings,
+            llm_insights=llm_insights,
+            scan_details=scan_details
+        )
+        
+        # Generate Markdown formatted report
+        markdown_report = reporting_agent.format_markdown_report(report_data)
+        
+        # Generate JSON export
+        json_report = reporting_agent.export_json(report_data)
+        
         logger.info("Code review report generated successfully")
+        logger.info(f"Report contains {len(static_findings)} static analysis findings")
+        logger.info(f"Markdown report: {len(markdown_report)} characters")
+        logger.info(f"JSON report: {len(json_report)} characters")
         
         return {
             "report_data": report_data,
-            "current_step": "completed"
+            "markdown_report": markdown_report,
+            "json_report": json_report,
+            "current_step": "completed",
+            "workflow_metadata": {
+                **workflow_metadata,
+                "report_generation_time": __import__('datetime').datetime.now().isoformat(),
+                "report_formats": ["json", "markdown"],
+                "report_agent_version": reporting_agent.report_version
+            }
         }
         
     except Exception as e:

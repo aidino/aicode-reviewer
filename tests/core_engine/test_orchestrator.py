@@ -431,8 +431,8 @@ class TestNodeFunctions:
             pr_diff=None,
             parsed_asts=None,
             static_analysis_findings=[
-                {"type": "warning", "severity": "warning", "message": "test warning"},
-                {"type": "info", "severity": "info", "message": "test info"}
+                {"rule_id": "TEST_WARNING", "severity": "Warning", "category": "test", "message": "test warning"},
+                {"rule_id": "TEST_INFO", "severity": "Info", "category": "test", "message": "test info"}
             ],
             llm_insights="Test LLM insights",
             report_data=None,
@@ -444,14 +444,46 @@ class TestNodeFunctions:
         result = reporting_node(state)
         
         assert "report_data" in result
+        assert "markdown_report" in result
+        assert "json_report" in result
         assert result["current_step"] == "completed"
         
+        # Test report structure (using ReportingAgent structure)
         report = result["report_data"]
-        assert report["summary"]["total_issues"] == 2
-        assert report["summary"]["pr_id"] == 123
-        assert report["static_analysis"]["categories"]["warnings"] == 1
-        assert report["static_analysis"]["categories"]["info"] == 1
-        assert report["llm_analysis"]["insights"] == "Test LLM insights"
+        assert "scan_info" in report
+        assert "summary" in report
+        assert "static_analysis_findings" in report
+        assert "llm_review" in report
+        
+        # Test summary data
+        summary = report["summary"]
+        assert summary["total_findings"] == 2
+        assert summary["scan_status"] == "completed"
+        assert summary["has_llm_analysis"] is True
+        
+        # Test severity breakdown
+        severity_breakdown = summary["severity_breakdown"]
+        assert severity_breakdown["Warning"] == 1
+        assert severity_breakdown["Info"] == 1
+        
+        # Test scan info
+        scan_info = report["scan_info"]
+        assert scan_info["repository"] == "https://github.com/test/repo"
+        assert scan_info["pr_id"] == 123
+        assert scan_info["scan_type"] == "pr"
+        
+        # Test LLM review
+        llm_review = report["llm_review"]
+        assert llm_review["insights"] == "Test LLM insights"
+        assert llm_review["has_content"] is True
+        
+        # Test static analysis findings
+        assert len(report["static_analysis_findings"]) == 2
+        
+        # Test that markdown report is generated
+        markdown = result["markdown_report"]
+        assert "# Code Review Report:" in markdown
+        assert "Test LLM insights" in markdown
     
     def test_handle_error_node(self):
         """Test error handling node."""
