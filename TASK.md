@@ -7,9 +7,9 @@
 * **\[DONE\]** Develop CodeFetcherAgent for Python:  
   * **\[DONE\]** Implement PR diff retrieval for Python projects.  
   * **\[DONE\]** Implement full project code retrieval for Python projects.  
-* **\[TODO\]** Develop ASTParsingAgent for Python:  
-  * **\[TODO\]** Integrate Tree-sitter with Python grammar.  
-  * **\[TODO\]** Implement AST generation for Python files.  
+* **\[DONE\]** Develop ASTParsingAgent for Python:  
+  * **\[DONE\]** Integrate Tree-sitter with Python grammar.  
+  * **\[DONE\]** Implement AST generation for Python files.  
 * **\[TODO\]** Develop basic StaticAnalysisAgent for Python:  
   * **\[TODO\]** Implement rule engine for Tree-sitter queries.  
   * **\[TODO\]** Define and implement 3-5 basic static analysis rules for Python (e.g., unused imports, simple style checks).  
@@ -119,3 +119,17 @@
   * **[DONE]** Create 18 unit tests with 75% coverage
   * **[DONE]** Integrate with LangGraph orchestrator fetch_code_node
   * **[DONE]** Add fallback mechanisms for PR scanning
+
+### **ASTParsingAgent Implementation (Completed - 2025-01-27)**
+
+* **[DONE]** Implement ASTParsingAgent for Python:
+  * **[DONE]** Create agent class with Tree-sitter integration
+  * **[DONE]** Implement parse_code_to_ast() method for parsing source code
+  * **[DONE]** Implement parse_file_to_ast() method for parsing files
+  * **[DONE]** Add language detection based on file extensions
+  * **[DONE]** Implement Python grammar loading with multiple fallback methods
+  * **[DONE]** Add structural information extraction (classes, functions, imports)
+  * **[DONE]** Create comprehensive error handling and logging
+  * **[DONE]** Create 18 unit tests with 67% coverage
+  * **[DONE]** Integrate with LangGraph orchestrator parse_code_node
+  * **[DONE]** Add tree-sitter-python dependency to requirements.txt

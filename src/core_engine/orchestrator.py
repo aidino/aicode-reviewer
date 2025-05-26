@@ -234,41 +234,131 @@ def parse_code_node(state: GraphState) -> Dict[str, Any]:
     """
     logger.info("Parsing code into ASTs")
     
-    # TODO: Integrate with ASTParsingAgent
-    # - Initialize Tree-sitter parsers for Python, Java, Kotlin
-    # - Parse each source file into AST
-    # - Extract structural information (classes, functions, imports)
-    # - Handle parsing errors gracefully
-    # - Store ASTs in efficient format for analysis
-    
     try:
+        # Import and initialize ASTParsingAgent
+        from src.core_engine.agents.ast_parsing_agent import ASTParsingAgent
+        
+        ast_parser = ASTParsingAgent()
+        
         project_code = state.get("project_code", {})
         pr_diff = state.get("pr_diff")
+        
+        parsed_asts = {}
         
         if pr_diff:
             # Parse PR diff content
             logger.info("Parsing PR diff content")
-            # Placeholder: Parse changed files from diff
-            parsed_asts = {
-                "changed_files": ["main.py", "utils.py"],
-                "ast_data": "# Placeholder AST data for PR files"
-            }
+            
+            # Extract changed files from diff and parse them
+            # For now, we'll parse the diff as text and extract file information
+            # In a real implementation, we'd parse the diff format to get individual files
+            
+            # Try to extract file content from diff
+            # This is a simplified approach - in practice, you'd want more sophisticated diff parsing
+            diff_lines = pr_diff.split('\n')
+            current_file = None
+            file_content = []
+            
+            for line in diff_lines:
+                if line.startswith('diff --git') or line.startswith('+++'):
+                    # New file detected
+                    if current_file and file_content:
+                        # Parse the previous file
+                        content = '\n'.join(file_content)
+                        if content.strip():
+                            ast_node = ast_parser.parse_code_to_ast(content, 'python')
+                            if ast_node:
+                                parsed_asts[current_file] = {
+                                    "ast_node": ast_node,
+                                    "structural_info": ast_parser.extract_structural_info(ast_node, 'python')
+                                }
+                    
+                    # Extract filename
+                    if line.startswith('+++'):
+                        current_file = line.split('/')[-1] if '/' in line else line.split()[-1]
+                        file_content = []
+                elif line.startswith('+') and not line.startswith('+++'):
+                    # Added line in diff
+                    file_content.append(line[1:])  # Remove the '+' prefix
+            
+            # Handle the last file
+            if current_file and file_content:
+                content = '\n'.join(file_content)
+                if content.strip():
+                    ast_node = ast_parser.parse_code_to_ast(content, 'python')
+                    if ast_node:
+                        parsed_asts[current_file] = {
+                            "ast_node": ast_node,
+                            "structural_info": ast_parser.extract_structural_info(ast_node, 'python')
+                        }
+            
+            # If no files were parsed from diff, create a summary
+            if not parsed_asts:
+                parsed_asts = {
+                    "diff_summary": {
+                        "type": "diff",
+                        "content": pr_diff[:1000] + "..." if len(pr_diff) > 1000 else pr_diff,
+                        "note": "Could not extract individual files from diff for AST parsing"
+                    }
+                }
+                
         elif project_code:
             # Parse full project files
             logger.info(f"Parsing {len(project_code)} project files")
-            # Placeholder: Parse each file with Tree-sitter
-            parsed_asts = {}
+            
             for filename, content in project_code.items():
-                parsed_asts[filename] = f"# Placeholder AST for {filename}"
+                try:
+                    # Detect language from filename
+                    language = ast_parser._detect_language(filename)
+                    
+                    if language and ast_parser.is_language_supported(language):
+                        # Parse the file content
+                        ast_node = ast_parser.parse_code_to_ast(content, language)
+                        
+                        if ast_node:
+                            # Extract structural information
+                            structural_info = ast_parser.extract_structural_info(ast_node, language)
+                            
+                            parsed_asts[filename] = {
+                                "language": language,
+                                "ast_node": ast_node,
+                                "structural_info": structural_info
+                            }
+                            
+                            logger.debug(f"Successfully parsed {filename} ({language})")
+                        else:
+                            logger.warning(f"Failed to parse {filename}")
+                            parsed_asts[filename] = {
+                                "language": language,
+                                "error": "Failed to parse AST"
+                            }
+                    else:
+                        logger.debug(f"Skipping {filename} - unsupported language or type")
+                        
+                except Exception as e:
+                    logger.error(f"Error parsing {filename}: {str(e)}")
+                    parsed_asts[filename] = {
+                        "error": str(e)
+                    }
         else:
             return {
                 "error_message": "No code to parse",
                 "current_step": "error"
             }
         
+        # Log parsing summary
+        successful_parses = sum(1 for ast_data in parsed_asts.values() 
+                              if isinstance(ast_data, dict) and "ast_node" in ast_data)
+        logger.info(f"Successfully parsed {successful_parses}/{len(parsed_asts)} files")
+        
         return {
             "parsed_asts": parsed_asts,
-            "current_step": "static_analysis"
+            "current_step": "static_analysis",
+            "workflow_metadata": {
+                **state.get("workflow_metadata", {}),
+                "parsed_files_count": len(parsed_asts),
+                "successful_parses": successful_parses
+            }
         }
         
     except Exception as e:

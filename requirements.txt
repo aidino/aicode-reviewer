@@ -21,6 +21,7 @@ GitPython
 
 # AST parsing
 tree-sitter
+tree-sitter-python
 
 # Testing framework
 pytest

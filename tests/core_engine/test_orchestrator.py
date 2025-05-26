@@ -305,7 +305,8 @@ class TestNodeFunctions:
         
         assert "parsed_asts" in result
         assert result["current_step"] == "static_analysis"
-        assert "changed_files" in result["parsed_asts"]
+        # For simple diff format, expect diff_summary when individual files can't be extracted
+        assert "diff_summary" in result["parsed_asts"]
     
     def test_parse_code_node_no_code(self):
         """Test AST parsing with no code available."""
