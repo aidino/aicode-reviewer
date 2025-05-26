@@ -117,39 +117,99 @@ def fetch_code_node(state: GraphState) -> Dict[str, Any]:
     """
     logger.info("Fetching code from repository")
     
-    # TODO: Integrate with CodeFetcherAgent
-    # - Clone/fetch repository using GitPython
-    # - If PR scan: fetch PR diff and changed files
-    # - If project scan: fetch all relevant source files
-    # - Handle authentication and access permissions
-    # - Filter files by supported languages (Python, Java, Kotlin)
-    
     try:
+        # Import CodeFetcherAgent
+        from src.core_engine.agents.code_fetcher_agent import CodeFetcherAgent
+        
+        # Initialize the agent
+        code_fetcher = CodeFetcherAgent()
+        
         repo_url = state["repo_url"]
         pr_id = state.get("pr_id")
+        scan_data = state.get("scan_request_data", {})
         
         if pr_id:
-            # PR-specific fetching logic placeholder
+            # PR-specific fetching logic
             logger.info(f"Fetching PR #{pr_id} from {repo_url}")
-            # Placeholder: In real implementation, use GitPython to fetch PR diff
-            pr_diff = f"# Placeholder PR diff for PR #{pr_id}\n# TODO: Implement actual PR diff fetching"
             
-            return {
-                "pr_diff": pr_diff,
-                "current_step": "parse_code"
-            }
+            # Get branch information from scan request
+            target_branch = scan_data.get("target_branch", "main")
+            source_branch = scan_data.get("source_branch")
+            
+            if not source_branch:
+                # If source branch not provided, try common patterns
+                source_branch = scan_data.get("branch", f"pr-{pr_id}")
+                logger.warning(f"Source branch not specified, using: {source_branch}")
+            
+            try:
+                # Fetch PR diff using CodeFetcherAgent
+                pr_diff = code_fetcher.get_pr_diff(
+                    repo_url=repo_url,
+                    pr_id=pr_id,
+                    target_branch=target_branch,
+                    source_branch=source_branch
+                )
+                
+                # Also get list of changed files for context
+                changed_files = code_fetcher.get_changed_files_from_diff(pr_diff)
+                
+                return {
+                    "pr_diff": pr_diff,
+                    "current_step": "parse_code",
+                    "workflow_metadata": {
+                        **state.get("workflow_metadata", {}),
+                        "changed_files": changed_files,
+                        "target_branch": target_branch,
+                        "source_branch": source_branch
+                    }
+                }
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch PR diff: {str(e)}")
+                # Fallback: try to get project files from source branch
+                try:
+                    logger.info("Falling back to project files from source branch")
+                    project_code = code_fetcher.get_project_files(repo_url, source_branch)
+                    
+                    return {
+                        "project_code": project_code,
+                        "current_step": "parse_code",
+                        "workflow_metadata": {
+                            **state.get("workflow_metadata", {}),
+                            "fallback_mode": True,
+                            "source_branch": source_branch
+                        }
+                    }
+                except Exception as e2:
+                    logger.error(f"Fallback also failed: {str(e2)}")
+                    raise Exception(f"Unable to fetch PR #{pr_id}: {str(e)}")
         else:
-            # Full project fetching logic placeholder
+            # Full project fetching logic
             logger.info(f"Fetching full project from {repo_url}")
-            # Placeholder: In real implementation, clone repo and read source files
-            project_code = {
-                "main.py": "# Placeholder Python file content\n# TODO: Implement actual file reading",
-                "utils.py": "# Another placeholder file\n# TODO: Implement actual file reading"
-            }
+            
+            # Get branch information from scan request
+            branch = scan_data.get("branch", "main")
+            
+            # Fetch project files using CodeFetcherAgent
+            project_code = code_fetcher.get_project_files(
+                repo_url=repo_url,
+                branch_or_commit=branch
+            )
+            
+            if not project_code:
+                return {
+                    "error_message": "No supported files found in the repository",
+                    "current_step": "error"
+                }
             
             return {
                 "project_code": project_code,
-                "current_step": "parse_code"
+                "current_step": "parse_code",
+                "workflow_metadata": {
+                    **state.get("workflow_metadata", {}),
+                    "branch": branch,
+                    "total_files": len(project_code)
+                }
             }
             
     except Exception as e:

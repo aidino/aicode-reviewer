@@ -103,10 +103,20 @@ class TestNodeFunctions:
         assert result["current_step"] == "error"
         assert "Repository URL is required" in result["error_message"]
     
-    def test_fetch_code_node_pr_scan(self):
+    @patch('src.core_engine.agents.code_fetcher_agent.CodeFetcherAgent')
+    def test_fetch_code_node_pr_scan(self, mock_agent_class):
         """Test code fetching for PR scan."""
+        # Setup mock agent
+        mock_agent = MagicMock()
+        mock_agent_class.return_value = mock_agent
+        mock_agent.get_pr_diff.return_value = "diff --git a/file.py b/file.py\n+new line"
+        mock_agent.get_changed_files_from_diff.return_value = ["file.py"]
+        
         state = GraphState(
-            scan_request_data={},
+            scan_request_data={
+                "target_branch": "main",
+                "source_branch": "feature"
+            },
             repo_url="https://github.com/test/repo",
             pr_id=123,
             project_code=None,
@@ -124,12 +134,31 @@ class TestNodeFunctions:
         
         assert "pr_diff" in result
         assert result["current_step"] == "parse_code"
-        assert "PR #123" in result["pr_diff"]
+        assert "diff --git a/file.py b/file.py" in result["pr_diff"]
+        assert "workflow_metadata" in result
+        assert result["workflow_metadata"]["changed_files"] == ["file.py"]
+        
+        # Verify agent was called correctly
+        mock_agent.get_pr_diff.assert_called_once_with(
+            repo_url="https://github.com/test/repo",
+            pr_id=123,
+            target_branch="main",
+            source_branch="feature"
+        )
     
-    def test_fetch_code_node_project_scan(self):
+    @patch('src.core_engine.agents.code_fetcher_agent.CodeFetcherAgent')
+    def test_fetch_code_node_project_scan(self, mock_agent_class):
         """Test code fetching for full project scan."""
+        # Setup mock agent
+        mock_agent = MagicMock()
+        mock_agent_class.return_value = mock_agent
+        mock_agent.get_project_files.return_value = {
+            "main.py": "print('hello')",
+            "utils.py": "def helper(): pass"
+        }
+        
         state = GraphState(
-            scan_request_data={},
+            scan_request_data={"branch": "develop"},
             repo_url="https://github.com/test/repo",
             pr_id=None,
             project_code=None,
@@ -149,6 +178,87 @@ class TestNodeFunctions:
         assert result["current_step"] == "parse_code"
         assert isinstance(result["project_code"], dict)
         assert "main.py" in result["project_code"]
+        assert "utils.py" in result["project_code"]
+        assert result["workflow_metadata"]["total_files"] == 2
+        assert result["workflow_metadata"]["branch"] == "develop"
+        
+        # Verify agent was called correctly
+        mock_agent.get_project_files.assert_called_once_with(
+            repo_url="https://github.com/test/repo",
+            branch_or_commit="develop"
+        )
+    
+    @patch('src.core_engine.agents.code_fetcher_agent.CodeFetcherAgent')
+    def test_fetch_code_node_pr_scan_with_fallback(self, mock_agent_class):
+        """Test PR scan with fallback to project files."""
+        # Setup mock agent
+        mock_agent = MagicMock()
+        mock_agent_class.return_value = mock_agent
+        
+        # First call (get_pr_diff) fails, second call (get_project_files) succeeds
+        mock_agent.get_pr_diff.side_effect = Exception("PR diff failed")
+        mock_agent.get_project_files.return_value = {
+            "main.py": "print('fallback')"
+        }
+        
+        state = GraphState(
+            scan_request_data={
+                "source_branch": "feature"
+            },
+            repo_url="https://github.com/test/repo",
+            pr_id=123,
+            project_code=None,
+            pr_diff=None,
+            parsed_asts=None,
+            static_analysis_findings=None,
+            llm_insights=None,
+            report_data=None,
+            error_message=None,
+            current_step="fetch_code",
+            workflow_metadata={}
+        )
+        
+        result = fetch_code_node(state)
+        
+        assert "project_code" in result
+        assert result["current_step"] == "parse_code"
+        assert result["workflow_metadata"]["fallback_mode"] == True
+        assert result["workflow_metadata"]["source_branch"] == "feature"
+        
+        # Verify both methods were called
+        mock_agent.get_pr_diff.assert_called_once()
+        mock_agent.get_project_files.assert_called_once_with(
+            "https://github.com/test/repo", 
+            "feature"
+        )
+    
+    @patch('src.core_engine.agents.code_fetcher_agent.CodeFetcherAgent')
+    def test_fetch_code_node_no_files_found(self, mock_agent_class):
+        """Test project scan when no supported files are found."""
+        # Setup mock agent
+        mock_agent = MagicMock()
+        mock_agent_class.return_value = mock_agent
+        mock_agent.get_project_files.return_value = {}  # No files found
+        
+        state = GraphState(
+            scan_request_data={},
+            repo_url="https://github.com/test/repo",
+            pr_id=None,
+            project_code=None,
+            pr_diff=None,
+            parsed_asts=None,
+            static_analysis_findings=None,
+            llm_insights=None,
+            report_data=None,
+            error_message=None,
+            current_step="fetch_code",
+            workflow_metadata={}
+        )
+        
+        result = fetch_code_node(state)
+        
+        assert result["current_step"] == "error"
+        assert "No supported files found" in result["error_message"]
     
     def test_parse_code_node_with_project_code(self):
         """Test AST parsing with project code."""
