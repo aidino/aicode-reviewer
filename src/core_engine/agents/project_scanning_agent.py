@@ -14,6 +14,7 @@ import json
 
 from .llm_orchestrator_agent import LLMOrchestratorAgent
 from .rag_context_agent import RAGContextAgent
+from ..risk_predictor import RiskPredictor
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class ProjectScanningAgent:
         self, 
         llm_orchestrator: Optional[LLMOrchestratorAgent] = None,
         rag_agent: Optional[RAGContextAgent] = None,
+        risk_predictor: Optional[RiskPredictor] = None,
         max_files_for_direct_analysis: int = 50,
         max_lines_per_summary: int = 500
     ):
@@ -43,11 +45,13 @@ class ProjectScanningAgent:
         Args:
             llm_orchestrator (Optional[LLMOrchestratorAgent]): LLM agent for analysis
             rag_agent (Optional[RAGContextAgent]): RAG agent for context retrieval
+            risk_predictor (Optional[RiskPredictor]): Risk predictor for comprehensive risk assessment
             max_files_for_direct_analysis (int): Max files before using hierarchical summarization
             max_lines_per_summary (int): Max lines to include in each summary
         """
         self.llm_orchestrator = llm_orchestrator or LLMOrchestratorAgent()
         self.rag_agent = rag_agent or RAGContextAgent()
+        self.risk_predictor = risk_predictor or RiskPredictor()
         self.max_files_for_direct_analysis = max_files_for_direct_analysis
         self.max_lines_per_summary = max_lines_per_summary
         
@@ -74,6 +78,51 @@ class ProjectScanningAgent:
             directory_groups[dir_path][file_path] = content
         
         return dict(directory_groups)
+    
+    def predict_risk_score(
+        self,
+        code_metrics: Dict[str, Any],
+        static_findings: Optional[List[Dict]] = None,
+        architectural_analysis: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Predict project risk score using RiskPredictor.
+        
+        Args:
+            code_metrics (Dict[str, Any]): Code metrics from calculate_code_metrics
+            static_findings (Optional[List[Dict]]): Static analysis findings
+            architectural_analysis (Optional[str]): LLM architectural analysis text
+            
+        Returns:
+            Dict[str, Any]: Comprehensive risk assessment
+        """
+        try:
+            # Store estimated lines for findings analysis
+            self.risk_predictor._estimated_lines = code_metrics.get('total_lines', 1)
+            
+            # Use RiskPredictor to generate comprehensive risk score
+            risk_assessment = self.risk_predictor.predict_risk_score(
+                code_metrics=code_metrics,
+                static_findings=static_findings,
+                architectural_analysis=architectural_analysis
+            )
+            
+            logger.info(f"Risk prediction completed: {risk_assessment['risk_level']} "
+                       f"(score: {risk_assessment['overall_risk_score']})")
+            
+            return risk_assessment
+            
+        except Exception as e:
+            logger.error(f"Error in risk score prediction: {str(e)}")
+            # Return fallback risk assessment
+            return {
+                'overall_risk_score': 50.0,
+                'risk_level': 'MEDIUM',
+                'component_scores': {},
+                'risk_factors': [f"Error in risk calculation: {str(e)}"],
+                'recommendations': [],
+                'error': str(e)
+            }
     
     def _calculate_complexity_metrics(self, code_files: Dict[str, str]) -> Dict[str, Any]:
         """
@@ -348,8 +397,8 @@ Directory summaries:
         logger.info(f"Starting project scan for {len(code_files)} files")
         
         try:
-            # Calculate project complexity metrics
-            complexity_metrics = self._calculate_complexity_metrics(code_files)
+            # Calculate project complexity metrics using RiskPredictor
+            complexity_metrics = self.risk_predictor.calculate_code_metrics(code_files)
             logger.info(f"Project metrics: {complexity_metrics['total_files']} files, "
                        f"{complexity_metrics['total_lines']} lines")
             
@@ -388,13 +437,26 @@ Directory summaries:
                 rag_context
             )
             
-            # Generate risk assessment
-            logger.info("Generating risk assessment")
-            risk_assessment = self._assess_project_risks(
+            # Generate comprehensive risk assessment using RiskPredictor
+            logger.info("Generating comprehensive risk assessment")
+            risk_prediction = self.predict_risk_score(
+                complexity_metrics,
+                static_findings,
+                architectural_analysis
+            )
+            
+            # Legacy risk assessment for backward compatibility
+            legacy_risk_assessment = self._assess_project_risks(
                 complexity_metrics,
                 architectural_analysis,
                 static_findings
             )
+            
+            # Combine risk assessments
+            risk_assessment = {
+                'risk_prediction': risk_prediction,
+                'legacy_assessment': legacy_risk_assessment
+            }
             
             # Compile final project report
             project_report = {

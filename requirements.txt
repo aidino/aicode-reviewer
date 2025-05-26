@@ -26,6 +26,9 @@ tree-sitter>=0.20.1
 tree-sitter-python>=0.20.1
 tree-sitter-java>=0.20.1
 
+# Code complexity and quality metrics
+radon
+
 # RAG and Vector Database
 qdrant-client
 sentence-transformers

@@ -310,10 +310,65 @@
 - **Production-ready code** with comprehensive error handling and fallback mechanisms
 - **Working demo** showcasing full project analysis capabilities
 
+### **Milestone 3.2: Risk Prediction Model Implementation (Completed - 2025-01-29)**
+
+* **[DONE]** Implement `RiskPredictor` class (`src/core_engine/risk_predictor.py`):
+  * **[DONE]** Create comprehensive risk prediction module with configurable weights for risk components
+  * **[DONE]** Implement `calculate_code_metrics()` method using radon library for complexity and quality metrics
+  * **[DONE]** Add support for cyclomatic complexity, maintainability index, and raw metrics calculation
+  * **[DONE]** Implement fallback calculations when radon is unavailable
+  * **[DONE]** Support Python, Java, and Kotlin file analysis
+  * **[DONE]** Calculate comprehensive project metrics: lines, complexity distribution, maintainability, size metrics, language distribution
+
+* **[DONE]** Implement `predict_risk_score()` method:
+  * **[DONE]** Combine code metrics with static analysis findings for comprehensive risk assessment
+  * **[DONE]** Calculate component scores: complexity, maintainability, size, findings density, security issues, code smells
+  * **[DONE]** Generate weighted overall risk score (0-100) with configurable component weights
+  * **[DONE]** Determine risk levels: MINIMAL/LOW/MEDIUM/HIGH/CRITICAL based on score thresholds
+  * **[DONE]** Identify specific risk factors contributing to overall score
+  * **[DONE]** Generate actionable recommendations with priority levels and specific actions
+
+* **[DONE]** Update `ProjectScanningAgent` integration:
+  * **[DONE]** Add `RiskPredictor` initialization in constructor with optional parameter
+  * **[DONE]** Implement `predict_risk_score()` method delegating to RiskPredictor instance
+  * **[DONE]** Update `scan_entire_project()` workflow to use RiskPredictor for code metrics calculation
+  * **[DONE]** Generate comprehensive risk assessment combining RiskPredictor and legacy assessment
+  * **[DONE]** Include risk prediction results in project scan reports
+
+* **[DONE]** Create comprehensive unit tests (`tests/core_engine/test_risk_predictor.py`):
+  * **[DONE]** `TestRiskPredictorInitialization` - 4 test cases for initialization and basic functionality
+  * **[DONE]** `TestCodeMetricsCalculation` - 6 test cases for metrics calculation with various scenarios
+  * **[DONE]** `TestRiskScorePrediction` - 12 test cases for risk score prediction and component calculations
+  * **[DONE]** `TestErrorHandling` - 3 test cases for error handling and graceful degradation
+  * **[DONE]** `TestIntegrationScenarios` - 1 comprehensive integration test with realistic code samples
+  * **[DONE]** Total: 26 comprehensive test cases covering all functionality with realistic scenarios
+
+* **[DONE]** Add `radon` dependency to `requirements.txt`:
+  * **[DONE]** Add `radon` for code complexity and quality metrics calculation
+  * **[DONE]** Implement graceful fallback when radon is not available
+
+**Technical Specifications Implemented:**
+- Configurable risk component weights (complexity: 0.25, maintainability: 0.20, size: 0.15, findings_density: 0.25, security_issues: 0.10, code_smells: 0.05)
+- Integration with radon library for accurate Python complexity metrics with fallback calculations
+- Support for multiple programming languages (Python, Java, Kotlin) with language-specific analysis
+- Comprehensive risk assessment combining code metrics and static analysis findings
+- Production-ready error handling with graceful degradation and logging
+- Extensive test coverage ensuring reliability and maintainability
+
+**Summary:** Successfully implemented comprehensive risk prediction model that combines radon-based code complexity analysis with static analysis findings to produce detailed risk assessments. The implementation provides:
+- **Complete risk prediction pipeline** from code metrics calculation to actionable recommendations
+- **Seamless integration** with existing ProjectScanningAgent workflow
+- **Comprehensive test coverage** with 26 test cases covering all functionality
+- **Production-ready code** with proper error handling, logging, and graceful fallbacks
+- **Working demo** showcasing risk prediction capabilities with realistic code samples
+- **Foundation for advanced project health assessment** and continuous code quality monitoring
+
+**Milestone 3.2 is FULLY COMPLETE** with all requirements met and comprehensive testing demonstrating functionality.
+
 ### **Milestone 3: Full Project Scanning, Advanced Features & Enhanced Web App (End of Phase 3\)**
 
 * **\[DONE\]** Develop ProjectScanningAgent for Python & Java.  
-* **\[BACKLOG\]** Initial Risk Prediction Model.  
+* **\[DONE\]** Initial Risk Prediction Model.  
 * **\[BACKLOG\]** DiagramGenerationAgent for Sequence Diagrams (Python & Java).  
 * **\[BACKLOG\]** Basic Kotlin & Android Support (Core Analysis).  
 * **\[BACKLOG\]** **Web Application \- Phase 2 (Interactive Features & Broader Support):**  
