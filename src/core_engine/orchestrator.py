@@ -373,7 +373,7 @@ def static_analysis_node(state: GraphState) -> Dict[str, Any]:
     """
     Node for performing static analysis on parsed ASTs.
     
-    Applies rule-based checks to identify potential issues.
+    Applies rule-based checks to identify potential issues using StaticAnalysisAgent.
     
     Args:
         state (GraphState): Current workflow state
@@ -383,14 +383,10 @@ def static_analysis_node(state: GraphState) -> Dict[str, Any]:
     """
     logger.info("Performing static analysis")
     
-    # TODO: Integrate with StaticAnalysisAgent
-    # - Apply Tree-sitter queries for pattern matching
-    # - Check for common issues: unused imports, style violations, etc.
-    # - Implement configurable rule engine
-    # - Generate structured findings with severity levels
-    # - Include code locations and suggested fixes
-    
     try:
+        # Import StaticAnalysisAgent
+        from src.core_engine.agents.static_analysis_agent import StaticAnalysisAgent
+        
         parsed_asts = state.get("parsed_asts", {})
         
         if not parsed_asts:
@@ -399,31 +395,43 @@ def static_analysis_node(state: GraphState) -> Dict[str, Any]:
                 "current_step": "error"
             }
         
-        # Placeholder static analysis logic
+        # Initialize the StaticAnalysisAgent
+        static_analyzer = StaticAnalysisAgent()
+        
         logger.info(f"Analyzing {len(parsed_asts)} parsed files")
         
-        # Simulate finding some issues
-        static_findings = [
-            {
-                "type": "unused_import",
-                "severity": "warning",
-                "file": "main.py",
-                "line": 5,
-                "message": "Unused import 'os'",
-                "suggestion": "Remove unused import"
-            },
-            {
-                "type": "style_violation",
-                "severity": "info",
-                "file": "utils.py",
-                "line": 12,
-                "message": "Line too long (>88 characters)",
-                "suggestion": "Break line or refactor"
-            }
-        ]
+        all_findings = []
+        
+        # Analyze each file's AST
+        for file_path, ast_data in parsed_asts.items():
+            try:
+                # Extract AST node and language from parsed data
+                ast_node = ast_data.get('ast_node')
+                language = ast_data.get('language', 'python')
+                
+                if ast_node is None:
+                    logger.warning(f"No AST node available for file: {file_path}")
+                    continue
+                
+                # Perform static analysis on the file
+                file_findings = static_analyzer.analyze_file_ast(
+                    ast_node=ast_node,
+                    file_path=file_path,
+                    language=language
+                )
+                
+                all_findings.extend(file_findings)
+                logger.debug(f"Found {len(file_findings)} issues in {file_path}")
+                
+            except Exception as e:
+                logger.error(f"Error analyzing file {file_path}: {str(e)}")
+                # Continue with other files even if one fails
+                continue
+        
+        logger.info(f"Static analysis completed. Found {len(all_findings)} total issues across all files")
         
         return {
-            "static_analysis_findings": static_findings,
+            "static_analysis_findings": all_findings,
             "current_step": "llm_analysis"
         }
         
