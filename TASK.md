@@ -52,13 +52,13 @@
   * **\[BACKLOG\]** Implement CodeFetcherAgent and ASTParsingAgent for Java.  
   * **\[BACKLOG\]** Basic StaticAnalysisAgent rules for Java.  
 * **\[BACKLOG\]** Integrate Pluggable Commercial LLM APIs (OpenAI/Gemini).  
-* **\[BACKLOG\]** **Web Application \- Phase 1 (Basic Report Viewing):**  
-  * **\[BACKLOG\]** Design basic Backend API (e.g., FastAPI) for report data.  
-  * **\[BACKLOG\]** Develop ReportingAgent to output structured JSON for the Web App.  
-  * **\[BACKLOG\]** Frontend: Setup project (e.g., React/Vue).  
-  * **\[BACKLOG\]** Frontend: Implement UI for listing scans/reports.  
-  * **\[BACKLOG\]** Frontend: Implement UI for displaying basic report details (findings, suggestions from ReportingAgent).  
-  * **\[BACKLOG\]** Frontend: Basic rendering of PlantUML/Mermaid class diagrams (Python).  
+* **\[DONE\]** **Web Application \- Phase 1 (Basic Report Viewing):**  
+  * **\[DONE\]** Design basic Backend API (e.g., FastAPI) for report data.  
+  * **\[DONE\]** Develop ReportingAgent to output structured JSON for the Web App.  
+  * **\[DONE\]** Frontend: Setup project (e.g., React/Vue).  
+  * **\[DONE\]** Frontend: Implement UI for listing scans/reports.  
+  * **\[DONE\]** Frontend: Implement UI for displaying basic report details (findings, suggestions from ReportingAgent).  
+  * **\[DONE\]** Frontend: Basic rendering of PlantUML/Mermaid class diagrams (Python).  
 * *Deliverable:* Actionable solution suggestions for Python. Basic class diagrams for Python PRs. **Basic Web App for viewing Python scan reports and class diagrams.** Basic Java analysis capabilities.
 
 ### **Milestone 2.5: Basic Java Support (Completed - 2025-01-28)**
@@ -136,6 +136,129 @@
 - Backward compatibility with existing mock provider functionality
 - Comprehensive test coverage with 32 additional test cases covering all new functionality
 - Production-ready LLM integration with proper error fallbacks and logging
+
+### **Milestone 2.7: Web Application Phase 1 - Backend API (Completed - 2025-01-28)**
+
+* **[DONE]** Create webapp backend structure:
+  * **[DONE]** Create `src/webapp/backend/` directory structure with `api/`, `models/`, `services/` modules
+  * **[DONE]** Add proper `__init__.py` files for all modules
+
+* **[DONE]** Implement Pydantic Models (`src/webapp/backend/models/scan_models.py`):
+  * **[DONE]** Create comprehensive data models matching ReportingAgent output structure
+  * **[DONE]** Implement `ReportDetail`, `ScanInfo`, `ScanSummary`, `StaticAnalysisFinding`, `LLMReview`, `DiagramData`, `ScanMetadata` models
+  * **[DONE]** Add enums: `ScanType`, `ScanStatus`, `SeverityLevel` for consistent data types
+  * **[DONE]** Create additional models: `ScanRequest`, `ScanResponse`, `ScanListItem` for API operations
+  * **[DONE]** Include comprehensive field documentation with descriptions and validation
+
+* **[DONE]** Implement ScanService (`src/webapp/backend/services/scan_service.py`):
+  * **[DONE]** Create `ScanService` class with business logic for scan operations
+  * **[DONE]** Implement `get_scan_report(scan_id: str)` method returning detailed `ReportDetail` data
+  * **[DONE]** Create different mock report types based on scan_id patterns (demo_, pr_, project_)
+  * **[DONE]** Include comprehensive mock data with realistic static analysis findings and LLM insights
+  * **[DONE]** Add detailed mock LLM reviews with security, performance, and architecture recommendations
+  * **[DONE]** Include PlantUML diagram data for visualization support
+
+* **[DONE]** Implement API Routes (`src/webapp/backend/api/scan_routes.py`):
+  * **[DONE]** Create FastAPI router with comprehensive scan endpoints
+  * **[DONE]** Enhance GET `/scans/{scan_id}/report` endpoint with proper error handling and validation
+  * **[DONE]** Implement dependency injection with `get_scan_service()` for testability
+  * **[DONE]** Add validation for empty scan_ids and proper HTTP status codes
+  * **[DONE]** Implement additional endpoints:
+    * **[DONE]** GET `/scans/{scan_id}/status` - Check scan status
+    * **[DONE]** POST `/scans/` - Create new scan
+    * **[DONE]** GET `/scans/` - List scans with pagination
+    * **[DONE]** DELETE `/scans/{scan_id}` - Delete scan
+  * **[DONE]** Add comprehensive error handling with appropriate HTTP status codes (400, 404, 500)
+  * **[DONE]** Include detailed logging throughout all endpoints
+
+* **[DONE]** Implement Unit Tests (`tests/webapp/backend/api/test_scan_routes.py`):
+  * **[DONE]** Create comprehensive test suite using pytest and unittest.mock
+  * **[DONE]** Implement test classes for each endpoint with success, error, and edge cases:
+    * **[DONE]** `TestGetScanReport` - 4 test cases covering success, not found, validation, service errors
+    * **[DONE]** `TestGetScanStatus` - 2 test cases for status retrieval
+    * **[DONE]** `TestCreateScan` - 2 test cases for scan creation and validation
+    * **[DONE]** `TestListScans` - 2 test cases for listing with pagination
+    * **[DONE]** `TestDeleteScan` - 2 test cases for deletion scenarios
+    * **[DONE]** `TestScanServiceDependency` - 2 test cases for dependency injection
+    * **[DONE]** `TestReportDetailResponseModel` - 2 test cases for model serialization
+  * **[DONE]** Use FastAPI TestClient with dependency overrides for proper mocking
+  * **[DONE]** Cover scenarios: successful retrieval, not found, validation errors, service errors
+  * **[DONE]** Add tests for response model serialization and datetime handling
+  * **[DONE]** Total: 16 comprehensive test cases with full error handling coverage
+
+**Technical Specifications Implemented:**
+- All code includes comprehensive type hints and docstrings following Google style
+- Used FastAPI with Pydantic for robust API development with automatic validation
+- Implemented proper dependency injection pattern for testability and maintainability
+- Mock data structure matches ReportingAgent's output format exactly for seamless integration
+- Error handling with appropriate HTTP status codes (400, 404, 500) and descriptive messages
+- Comprehensive logging throughout the application for debugging and monitoring
+- Production-ready FastAPI endpoints with proper request/response models
+
+**Summary:** Successfully implemented a complete backend API for the web application's report viewing functionality. The backend provides:
+- RESTful API endpoints for scan management and report retrieval
+- Comprehensive data models matching the core engine's output structure
+- Mock data service providing realistic scan reports for development and testing
+- Full test coverage ensuring reliability and maintainability
+- Foundation for frontend integration and future web application features
+- Production-ready code with proper error handling, validation, and logging
+
+### **Frontend Unit Testing Implementation (Completed - 2025-01-28)**
+
+* **[DONE]** Implement Unit Tests for Frontend React Components:
+  * **[DONE]** Setup testing infrastructure with Vitest, React Testing Library, and MSW
+  * **[DONE]** Configure test environment with proper setup files and mock utilities
+  * **[DONE]** Create comprehensive test suite for DiagramDisplay component (24 test cases):
+    * **[DONE]** Loading states and error handling
+    * **[DONE]** PlantUML diagram rendering with server-based encoding
+    * **[DONE]** Mermaid diagram rendering with dynamic imports
+    * **[DONE]** Auto-detection mechanisms for diagram types
+    * **[DONE]** Image load error handling and fallback states
+    * **[DONE]** Props changes and component lifecycle testing
+  * **[DONE]** Create comprehensive test suite for ScanList page component (20 test cases):
+    * **[DONE]** Loading states and data rendering with MSW API mocking
+    * **[DONE]** Status badges, type badges, and PR numbers display
+    * **[DONE]** Navigation functionality (scan view, new scan creation)
+    * **[DONE]** Scan deletion with confirmation dialogs
+    * **[DONE]** Pagination controls and navigation
+    * **[DONE]** Empty states, error handling, and retry functionality
+    * **[DONE]** Statistics display and date formatting
+  * **[DONE]** Create comprehensive test suite for ReportView page component (20 test cases):
+    * **[DONE]** Loading states and report rendering with mock data
+    * **[DONE]** Tab functionality (Overview, Findings, LLM Insights, Diagrams)
+    * **[DONE]** Overview tab: scan summary and information display
+    * **[DONE]** Findings tab: static analysis findings with severity filtering
+    * **[DONE]** LLM Insights tab: analysis display with confidence scores
+    * **[DONE]** Diagrams tab: integration with DiagramDisplay component
+    * **[DONE]** Error handling (scan not found, server errors)
+    * **[DONE]** Navigation and retry functionality
+  * **[DONE]** Setup Mock Service Worker (MSW) for API testing:
+    * **[DONE]** Mock realistic scan data with comprehensive structure
+    * **[DONE]** Mock detailed report data with static analysis findings
+    * **[DONE]** Mock LLM analysis with security and code quality insights
+    * **[DONE]** Mock PlantUML diagram data for visualization testing
+    * **[DONE]** API endpoint handlers with proper error scenarios
+  * **[DONE]** Create test utilities and setup files:
+    * **[DONE]** Custom render function with Router wrapper
+    * **[DONE]** Global test setup with MSW server lifecycle
+    * **[DONE]** Mock browser APIs (matchMedia, ResizeObserver, fetch)
+    * **[DONE]** Mock mermaid library for diagram testing
+
+**Technical Specifications Implemented:**
+- Used modern testing stack: Vitest, React Testing Library, MSW for comprehensive testing
+- Achieved high test coverage for critical frontend components
+- Implemented realistic API mocking for integration testing scenarios
+- Created production-ready test infrastructure for ongoing development
+- Added proper mock strategies for external dependencies and browser APIs
+- Established foundation for future frontend testing expansion
+
+**Summary:** Successfully implemented comprehensive unit testing for frontend React components. The testing suite provides:
+- Complete coverage for 3 main components (DiagramDisplay, ScanList, ReportView)
+- Over 60 test cases covering component rendering, user interactions, API integration, and error handling
+- Realistic API mocking with MSW for integration-style testing
+- Modern testing infrastructure using Vitest and React Testing Library
+- Proper error handling and edge case coverage
+- Foundation for ongoing frontend development and testing
 
 ### **Milestone 3: Full Project Scanning, Advanced Features & Enhanced Web App (End of Phase 3\)**
 

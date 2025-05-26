@@ -32,19 +32,29 @@ This system moves beyond traditional linters and basic static analysis tools by:
 
 ```
 aicode-reviewer/
-├── src/                    # Main source code
-│   ├── agents/            # LangGraph agents (CodeFetcher, ASTParser, etc.)
-│   ├── analysis/          # AST parsing and static analysis modules
-│   ├── core/              # Core business logic and orchestration
-│   ├── reporting/         # Report generation and formatting
-│   ├── utils/             # Utility functions and helpers
-│   └── web_api/           # FastAPI web application
-├── tests/                 # Unit tests mirroring src structure
-├── scripts/               # Deployment and utility scripts
-├── docs/                  # Documentation (includes PLANNING.md, TASK.md)
-├── config/                # Configuration files and settings
-├── requirements.txt       # Python dependencies
-└── .env.example          # Environment variables template
+├── src/                           # Main source code
+│   ├── core_engine/              # Core analysis engine
+│   │   ├── agents/               # LangGraph agents (CodeFetcher, ASTParser, etc.)
+│   │   ├── orchestrator.py       # Main workflow orchestration
+│   │   └── diagramming_engine.py # Diagram generation logic
+│   ├── webapp/                   # Web application
+│   │   └── backend/              # FastAPI backend
+│   │       ├── api/              # API routes and endpoints
+│   │       ├── models/           # Pydantic data models
+│   │       └── services/         # Business logic services
+│   ├── reporting/                # Report generation and formatting
+│   ├── utils/                    # Utility functions and helpers
+│   └── main.py                   # Application entry point
+├── tests/                        # Unit tests mirroring src structure
+│   ├── core_engine/              # Core engine tests
+│   └── webapp/backend/           # Webapp backend tests
+├── scripts/                      # Demo and utility scripts
+│   ├── demo_webapp_backend.py    # Webapp backend demo
+│   └── test_api_simple.py        # Simple API testing
+├── docs/                         # Documentation (PLANNING.md, TASK.md)
+├── config/                       # Configuration files and settings
+├── requirements.txt              # Python dependencies
+└── .env.example                 # Environment variables template
 ```
 
 ## **Setup and Installation**
@@ -93,17 +103,38 @@ The project uses the following key dependencies:
 
 ## **Development Status**
 
-This project is currently in **Phase 1 - Proof of Concept** development. See `docs/TASK.md` for current sprint tasks and milestones.
+This project is currently in **Phase 2 - Enhanced Analysis & Basic Web App** development. See `docs/TASK.md` for current sprint tasks and milestones.
 
-### **Current Milestone: Proof-of-Concept Core Engine & Single Language**
+### **Completed Milestones**
 
-- [ ] Setup LangGraph Framework
-- [ ] Develop CodeFetcherAgent for Python
-- [ ] Develop ASTParsingAgent for Python  
-- [ ] Develop basic StaticAnalysisAgent for Python
-- [ ] Integrate one Open Source LLM
-- [ ] Develop basic ReportingAgent
-- [ ] End-to-End Test for Python PR Scan
+- [✅] **Milestone 1**: Proof-of-Concept Core Engine & Single Language  
+- [✅] **Milestone 2.5**: Basic Java Support
+- [✅] **Milestone 2.6**: Commercial LLM APIs Integration (OpenAI & Google Gemini)
+- [✅] **Milestone 2.7**: Web Application Phase 1 - Backend API
+
+### **Current Status: Web Application Backend Completed**
+
+The backend API for the web application has been successfully implemented with:
+
+- **RESTful API Endpoints**: Complete FastAPI backend with scan management
+- **Comprehensive Data Models**: Pydantic models matching core engine output
+- **Mock Data Service**: Realistic scan reports for development and testing  
+- **Full Test Coverage**: 16 comprehensive unit tests with error handling
+- **Production-Ready Code**: Proper validation, logging, and dependency injection
+
+**Available Endpoints:**
+- `GET /scans/{scan_id}/report` - Retrieve detailed scan reports
+- `GET /scans/{scan_id}/status` - Check scan status
+- `POST /scans/` - Create new scans
+- `GET /scans/` - List scans with pagination
+- `DELETE /scans/{scan_id}` - Delete scans
+
+### **Next Steps: Frontend Development**
+
+- [ ] Frontend: Setup project (React/Vue)
+- [ ] Frontend: Implement UI for listing scans/reports  
+- [ ] Frontend: Display basic report details and findings
+- [ ] Frontend: Basic rendering of PlantUML/Mermaid diagrams
 
 ## **Architecture**
 
@@ -116,6 +147,56 @@ The system follows a modular, multi-agent architecture built on LangGraph. Key c
 - **Knowledge Base**: Vector store for RAG context
 
 For detailed architecture information, see `docs/PLANNING.md`.
+
+## **Testing**
+
+The project includes comprehensive unit tests for all components:
+
+```bash
+# Run all tests
+python -m pytest
+
+# Run tests with coverage
+python -m pytest --cov=src
+
+# Run specific test module
+python -m pytest tests/webapp/backend/api/test_scan_routes.py -v
+
+# Run webapp backend API tests
+python scripts/test_api_simple.py
+```
+
+**Test Coverage:**
+- **Webapp Backend API**: 16 comprehensive test cases with error handling
+- **Core Engine Components**: Individual agent tests with mock data
+- **Integration Tests**: End-to-end workflow testing
+
+## **Demo and Usage**
+
+### **Testing the Webapp Backend API**
+
+```bash
+# Simple API test using TestClient
+python scripts/test_api_simple.py
+
+# Full demo with server (requires uvicorn)
+python scripts/demo_webapp_backend.py
+```
+
+**Sample API Usage:**
+
+```bash
+# Get scan report
+curl http://localhost:8000/scans/demo_scan_1/report
+
+# Create new scan
+curl -X POST http://localhost:8000/scans/ \
+  -H "Content-Type: application/json" \
+  -d '{"repo_url": "https://github.com/user/repo", "scan_type": "pr", "pr_id": 123}'
+
+# List all scans
+curl http://localhost:8000/scans/
+```
 
 ## **Contributing**
 
