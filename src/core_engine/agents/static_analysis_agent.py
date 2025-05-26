@@ -85,7 +85,7 @@ class StaticAnalysisAgent:
             logger.error(f"Error initializing Python language: {str(e)}")
             raise Exception(f"Failed to initialize Python language for static analysis: {str(e)}")
     
-    def _query_ast(self, ast_node: Node, query_string: str) -> List[Tuple[Node, Dict]]:
+    def _query_ast(self, ast_node: Node, query_string: str) -> Dict[str, List[Node]]:
         """
         Execute a Tree-sitter query on an AST node and return captures.
         
@@ -94,11 +94,11 @@ class StaticAnalysisAgent:
             query_string (str): Tree-sitter query string
             
         Returns:
-            List[Tuple[Node, Dict]]: List of (node, captures) tuples from query results
+            Dict[str, List[Node]]: Dictionary mapping capture names to lists of nodes
         """
         if self.languages.get('python') is None:
             logger.warning("Python language not available for queries")
-            return []
+            return {}
         
         try:
             # Create query object
@@ -110,7 +110,7 @@ class StaticAnalysisAgent:
             
         except Exception as e:
             logger.error(f"Error executing Tree-sitter query: {str(e)}")
-            return []
+            return {}
     
     def _check_rule_pdb_set_trace(self, ast_node: Node) -> List[Dict]:
         """
@@ -140,18 +140,18 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            for node, capture_dict in captures:
-                if capture_dict.get('call'):
-                    call_node = capture_dict['call']
-                    findings.append({
-                        'rule_id': 'PDB_TRACE_FOUND',
-                        'message': 'pdb.set_trace() found - debugging statement should be removed',
-                        'line': call_node.start_point[0] + 1,
-                        'column': call_node.start_point[1] + 1,
-                        'severity': 'Warning',
-                        'category': 'debugging',
-                        'suggestion': 'Remove pdb.set_trace() before committing to production'
-                    })
+            # Get captured call nodes
+            call_nodes = captures.get('call', [])
+            for call_node in call_nodes:
+                findings.append({
+                    'rule_id': 'PDB_TRACE_FOUND',
+                    'message': 'pdb.set_trace() found - debugging statement should be removed',
+                    'line': call_node.start_point[0] + 1,
+                    'column': call_node.start_point[1] + 1,
+                    'severity': 'Warning',
+                    'category': 'debugging',
+                    'suggestion': 'Remove pdb.set_trace() before committing to production'
+                })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_pdb_set_trace: {str(e)}")
@@ -184,18 +184,18 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            for node, capture_dict in captures:
-                if capture_dict.get('call'):
-                    call_node = capture_dict['call']
-                    findings.append({
-                        'rule_id': 'PRINT_STATEMENT_FOUND',
-                        'message': 'print() statement found - consider using logging instead',
-                        'line': call_node.start_point[0] + 1,
-                        'column': call_node.start_point[1] + 1,
-                        'severity': 'Info',
-                        'category': 'logging',
-                        'suggestion': 'Replace print() with proper logging (logger.info, logger.debug, etc.)'
-                    })
+            # Get captured call nodes
+            call_nodes = captures.get('call', [])
+            for call_node in call_nodes:
+                findings.append({
+                    'rule_id': 'PRINT_STATEMENT_FOUND',
+                    'message': 'print() statement found - consider using logging instead',
+                    'line': call_node.start_point[0] + 1,
+                    'column': call_node.start_point[1] + 1,
+                    'severity': 'Info',
+                    'category': 'logging',
+                    'suggestion': 'Replace print() with proper logging (logger.info, logger.debug, etc.)'
+                })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_print_statements: {str(e)}")
@@ -225,27 +225,30 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            for node, capture_dict in captures:
-                if capture_dict.get('func_def'):
-                    func_node = capture_dict['func_def']
-                    func_name_node = capture_dict.get('func_name')
-                    
-                    # Calculate function length in lines
-                    start_line = func_node.start_point[0]
-                    end_line = func_node.end_point[0]
-                    func_length = end_line - start_line + 1
-                    
-                    if func_length > 50:
-                        func_name = func_name_node.text.decode('utf-8') if func_name_node else 'unknown'
-                        findings.append({
-                            'rule_id': 'FUNCTION_TOO_LONG',
-                            'message': f'Function "{func_name}" is {func_length} lines long (>50 lines)',
-                            'line': start_line + 1,
-                            'column': func_node.start_point[1] + 1,
-                            'severity': 'Warning',
-                            'category': 'complexity',
-                            'suggestion': f'Consider breaking down function "{func_name}" into smaller, more focused functions'
-                        })
+            # Get captured function definition nodes
+            func_def_nodes = captures.get('func_def', [])
+            func_name_nodes = captures.get('func_name', [])
+            
+            # Match function definitions with their names
+            for i, func_node in enumerate(func_def_nodes):
+                func_name_node = func_name_nodes[i] if i < len(func_name_nodes) else None
+                
+                # Calculate function length in lines
+                start_line = func_node.start_point[0]
+                end_line = func_node.end_point[0]
+                func_length = end_line - start_line + 1
+                
+                if func_length > 50:
+                    func_name = func_name_node.text.decode('utf-8') if func_name_node else 'unknown'
+                    findings.append({
+                        'rule_id': 'FUNCTION_TOO_LONG',
+                        'message': f'Function "{func_name}" is {func_length} lines long (>50 lines)',
+                        'line': start_line + 1,
+                        'column': func_node.start_point[1] + 1,
+                        'severity': 'Warning',
+                        'category': 'complexity',
+                        'suggestion': f'Consider breaking down function "{func_name}" into smaller, more focused functions'
+                    })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_function_too_long: {str(e)}")
@@ -276,27 +279,30 @@ class StaticAnalysisAgent:
         try:
             captures = self._query_ast(ast_node, query_string)
             
-            for node, capture_dict in captures:
-                if capture_dict.get('class_def'):
-                    class_node = capture_dict['class_def']
-                    class_name_node = capture_dict.get('class_name')
-                    
-                    # Calculate class length in lines
-                    start_line = class_node.start_point[0]
-                    end_line = class_node.end_point[0]
-                    class_length = end_line - start_line + 1
-                    
-                    if class_length > 200:
-                        class_name = class_name_node.text.decode('utf-8') if class_name_node else 'unknown'
-                        findings.append({
-                            'rule_id': 'CLASS_TOO_LONG',
-                            'message': f'Class "{class_name}" is {class_length} lines long (>200 lines)',
-                            'line': start_line + 1,
-                            'column': class_node.start_point[1] + 1,
-                            'severity': 'Warning',
-                            'category': 'complexity',
-                            'suggestion': f'Consider breaking down class "{class_name}" into smaller classes with single responsibilities'
-                        })
+            # Get captured class definition nodes
+            class_def_nodes = captures.get('class_def', [])
+            class_name_nodes = captures.get('class_name', [])
+            
+            # Match class definitions with their names
+            for i, class_node in enumerate(class_def_nodes):
+                class_name_node = class_name_nodes[i] if i < len(class_name_nodes) else None
+                
+                # Calculate class length in lines
+                start_line = class_node.start_point[0]
+                end_line = class_node.end_point[0]
+                class_length = end_line - start_line + 1
+                
+                if class_length > 200:
+                    class_name = class_name_node.text.decode('utf-8') if class_name_node else 'unknown'
+                    findings.append({
+                        'rule_id': 'CLASS_TOO_LONG',
+                        'message': f'Class "{class_name}" is {class_length} lines long (>200 lines)',
+                        'line': start_line + 1,
+                        'column': class_node.start_point[1] + 1,
+                        'severity': 'Warning',
+                        'category': 'complexity',
+                        'suggestion': f'Consider breaking down class "{class_name}" into smaller classes with single responsibilities'
+                    })
             
         except Exception as e:
             logger.error(f"Error in _check_rule_class_too_long: {str(e)}")
@@ -335,10 +341,12 @@ class StaticAnalysisAgent:
             
             # Collect regular imports
             import_captures = self._query_ast(ast_node, import_query)
-            for node, capture_dict in import_captures:
-                if capture_dict.get('import_name'):
-                    import_node = capture_dict['import_name']
-                    import_stmt_node = capture_dict['import_stmt']
+            import_name_nodes = import_captures.get('import_name', [])
+            import_stmt_nodes = import_captures.get('import_stmt', [])
+            
+            for i, import_node in enumerate(import_name_nodes):
+                import_stmt_node = import_stmt_nodes[i] if i < len(import_stmt_nodes) else None
+                if import_node and import_stmt_node:
                     import_text = import_node.text.decode('utf-8')
                     # For dotted imports, use the first part
                     import_name = import_text.split('.')[0]
@@ -347,10 +355,12 @@ class StaticAnalysisAgent:
             
             # Collect from imports
             from_captures = self._query_ast(ast_node, import_from_query)
-            for node, capture_dict in from_captures:
-                if capture_dict.get('imported_name'):
-                    imported_node = capture_dict['imported_name']
-                    import_stmt_node = capture_dict['import_from_stmt']
+            imported_name_nodes = from_captures.get('imported_name', [])
+            import_from_stmt_nodes = from_captures.get('import_from_stmt', [])
+            
+            for i, imported_node in enumerate(imported_name_nodes):
+                import_stmt_node = import_from_stmt_nodes[i] if i < len(import_from_stmt_nodes) else None
+                if imported_node and import_stmt_node:
                     import_name = imported_node.text.decode('utf-8')
                     imports.add(import_name)
                     import_locations[import_name] = import_stmt_node
@@ -362,11 +372,11 @@ class StaticAnalysisAgent:
             
             used_identifiers = set()
             identifier_captures = self._query_ast(ast_node, identifier_query)
-            for node, capture_dict in identifier_captures:
-                if capture_dict.get('identifier'):
-                    identifier_node = capture_dict['identifier']
-                    identifier_name = identifier_node.text.decode('utf-8')
-                    used_identifiers.add(identifier_name)
+            identifier_nodes = identifier_captures.get('identifier', [])
+            
+            for identifier_node in identifier_nodes:
+                identifier_name = identifier_node.text.decode('utf-8')
+                used_identifiers.add(identifier_name)
             
             # Find potentially unused imports
             for import_name in imports:

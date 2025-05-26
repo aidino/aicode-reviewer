@@ -70,15 +70,14 @@ class ASTParsingAgent:
             Exception: If no languages can be loaded successfully
         """
         try:
-            # Initialize the main parser
-            self.parser = Parser()
-            
-            # Try to load Python grammar
+            # Try to load Python grammar first
             if 'python' in self.supported_languages:
                 try:
                     python_language = self._load_python_language()
                     if python_language:
                         self.languages['python'] = python_language
+                        # Initialize parser with Python language
+                        self.parser = Parser(python_language)
                         logger.info("Successfully loaded Python language grammar")
                     else:
                         logger.warning("Failed to load Python language grammar")
@@ -92,10 +91,11 @@ class ASTParsingAgent:
             if not self.languages:
                 raise Exception("No language grammars could be loaded. Please ensure tree-sitter grammars are available.")
             
-            # Set default language to Python if available
-            if 'python' in self.languages:
-                self.parser.language = self.languages['python']
-                logger.info("Set default parser language to Python")
+            # If no parser was created yet, create one with the first available language
+            if self.parser is None:
+                first_language = list(self.languages.values())[0]
+                self.parser = Parser(first_language)
+                logger.info(f"Created parser with first available language")
             
         except Exception as e:
             logger.error(f"Failed to initialize parsers: {str(e)}")
@@ -211,14 +211,15 @@ class ASTParsingAgent:
             if language not in self.languages:
                 raise ValueError(f"Language '{language}' grammar is not loaded")
             
-            # Set parser language
-            self.parser.language = self.languages[language]
+            # Create parser with the specified language
+            language_obj = self.languages[language]
+            parser = Parser(language_obj)
             
             # Convert string to bytes (required by tree-sitter)
             code_bytes = code_content.encode('utf-8')
             
             # Parse the code
-            tree = self.parser.parse(code_bytes)
+            tree = parser.parse(code_bytes)
             
             if tree is None:
                 logger.error(f"Failed to parse {language} code - parser returned None")
