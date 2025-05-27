@@ -119,4 +119,52 @@ export interface ApiError {
 export interface ApiResponse<T> {
   data?: T;
   error?: ApiError;
+}
+
+// Feedback Types
+export type FeedbackType = 'finding' | 'llm_suggestion' | 'llm_insight' | 'diagram' | 'overall_report';
+export type FeedbackRating = 'very_helpful' | 'helpful' | 'neutral' | 'not_helpful' | 'very_unhelpful';
+
+export interface FeedbackRequest {
+  scan_id: string;
+  finding_id?: string;
+  feedback_type: FeedbackType;
+  is_helpful: boolean;
+  rating?: FeedbackRating;
+  comment?: string;
+  user_id?: string;
+  item_content?: string;
+  rule_id?: string;
+  suggestion_type?: string;
+}
+
+export interface FeedbackResponse {
+  feedback_id: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface FeedbackSummary {
+  scan_id: string;
+  total_feedback_count: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  feedback_types: Record<FeedbackType, number>;
+  average_rating?: number;
+}
+
+export interface FeedbackDetail {
+  feedback_id: string;
+  scan_id: string;
+  finding_id?: string;
+  feedback_type: FeedbackType;
+  is_helpful: boolean;
+  rating?: FeedbackRating;
+  comment: string;
+  user_id?: string;
+  item_content?: string;
+  rule_id?: string;
+  suggestion_type?: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
 } 

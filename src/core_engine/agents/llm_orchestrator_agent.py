@@ -189,10 +189,24 @@ class LLMOrchestratorAgent:
                     full_prompt += f"   - Suggestion: {finding['suggestion']}\n"
             full_prompt += "\n"
         
-        # Add analysis instructions
+        # Add analysis instructions with XAI requirements
         full_prompt += """## Analysis Instructions:
-Please provide a comprehensive code review analysis including:
+Please provide a comprehensive code review analysis with EXPLAINABLE AI (XAI) requirements:
 
+CRITICAL: For EVERY analysis point, you MUST include:
+- **Reasoning**: Detailed explanation of WHY you reached this conclusion
+- **Confidence**: Numerical score 0.0-1.0 (e.g., "Confidence: 0.85")
+- **Evidence**: Specific code lines, patterns, or metrics supporting your assessment
+- **Alternatives**: Alternative interpretations if confidence < 0.8
+
+Format each main finding as:
+## Finding: [Brief Description]
+**Reasoning:** [Detailed reasoning process]
+**Confidence:** [0.0-1.0]
+**Evidence:** [Specific code references/patterns]
+**Impact:** [Potential consequences]
+
+Provide analysis covering:
 1. **Code Quality Assessment**: Overall structure, readability, maintainability
 2. **Security Considerations**: Potential vulnerabilities or security issues
 3. **Performance Analysis**: Efficiency concerns and optimization opportunities
@@ -201,7 +215,7 @@ Please provide a comprehensive code review analysis including:
 6. **Specific Recommendations**: Actionable suggestions for improvement
 
 Consider both the code being analyzed and any provided context from the codebase.
-Please format your response in clear sections and provide specific, actionable feedback.
+REMEMBER: Include reasoning and confidence for ALL findings.
 """
         
         return full_prompt
@@ -227,10 +241,14 @@ Please format your response in clear sections and provide specific, actionable f
         has_rag = rag_context and len(rag_context) > 0
         findings_count = len(static_findings) if static_findings else 0
         
-        # Generate contextual mock response
-        mock_response = f"""# Mock LLM Analysis Results
+        # Generate contextual mock response with XAI
+        mock_response = f"""# Mock LLM Analysis Results with XAI
 
-## Code Quality Assessment
+## Finding: Code Structure Assessment
+**Reasoning:** Code organization analysis based on function/class definitions, naming patterns, and structural clarity
+**Confidence:** 0.82
+**Evidence:** Function definitions follow standard Python patterns, consistent indentation detected
+**Impact:** Well-structured code improves maintainability and readability
 """
         
         if has_code:
@@ -247,34 +265,57 @@ Please format your response in clear sections and provide specific, actionable f
                         class_name = line.split('class ')[1].split(':')[0]
                         code_elements.append(class_name)
             
-            mock_response += """- The code structure appears well-organized with clear function definitions
-- Variable naming follows Python conventions and is descriptive
-- Code readability is good with appropriate spacing and indentation
+            mock_response += f"""
+The code structure appears well-organized with clear function definitions.
+Variable naming follows Python conventions and is descriptive.
+Code readability is good with appropriate spacing and indentation.
 """
             # Include analyzed code elements
             if code_elements:
-                mock_response += f"- Analyzed elements: {', '.join(code_elements)}\n"
+                mock_response += f"Analyzed elements: {', '.join(code_elements)}\n"
         else:
-            mock_response += """- Unable to assess code structure without specific code snippets
-- Recommend providing code samples for detailed analysis
+            mock_response += f"""
+Unable to assess code structure without specific code snippets.
+Recommend providing code samples for detailed analysis.
 """
         
-        mock_response += "\n## Security Considerations\n"
+        mock_response += "\n## Finding: Security Analysis\n"
         
         if has_findings:
             # Check for security-related findings
             security_findings = [f for f in static_findings if 'pdb' in f.get('rule_id', '').lower() 
                                or 'debug' in f.get('category', '').lower()]
             if security_findings:
-                mock_response += "- **Security Alert**: Debugging statements detected that should not be in production\n"
-                mock_response += "- Remove all pdb.set_trace() calls before deployment\n"
+                mock_response += f"""**Reasoning:** Detected {len(security_findings)} debugging statements that pose security risks in production
+**Confidence:** 0.95
+**Evidence:** pdb.set_trace() calls found in static analysis - these expose interactive debugging
+**Impact:** Critical security vulnerability - allows arbitrary code execution in production
+
+- **Security Alert**: Debugging statements detected that should not be in production
+- Remove all pdb.set_trace() calls before deployment
+"""
             else:
-                mock_response += "- No obvious security vulnerabilities detected in static analysis\n"
+                mock_response += """**Reasoning:** No security-related patterns detected in current static analysis findings
+**Confidence:** 0.75
+**Evidence:** No obvious security vulnerabilities in analyzed patterns
+**Impact:** Current code appears secure from basic vulnerability patterns
+
+- No obvious security vulnerabilities detected in static analysis
+"""
         else:
-            mock_response += "- No specific security issues identified\n"
+            mock_response += """**Reasoning:** Limited security assessment possible without specific findings or code patterns
+**Confidence:** 0.60
+**Evidence:** No static analysis data available for security pattern detection
+**Impact:** Incomplete security assessment - manual review recommended
+
+- No specific security issues identified
+"""
         
-        mock_response += "- Recommend implementing input validation for user-facing functions\n"
-        mock_response += "- Consider adding authentication and authorization checks where appropriate\n\n"
+        mock_response += """
+- Recommend implementing input validation for user-facing functions
+- Consider adding authentication and authorization checks where appropriate
+
+"""
         
         mock_response += "## Performance Analysis\n"
         

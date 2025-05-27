@@ -11,6 +11,7 @@ import ScanList from './pages/ScanList';
 import ReportView from './pages/ReportView';
 import CreateScan from './pages/CreateScan';
 import TestPage from './pages/TestPage';
+import Dashboard from './pages/Dashboard';
 
 // Global styles
 const globalStyles = `
@@ -86,6 +87,25 @@ const Header: React.FC = () => {
           </div>
         </div>
         <nav style={{ display: 'flex', gap: '12px' }}>
+          <a
+            href="/dashboard"
+            style={{
+              color: 'white',
+              textDecoration: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+            }}
+          >
+            📊 Dashboard
+          </a>
           <a
             href="/scans"
             style={{
@@ -255,8 +275,14 @@ const App: React.FC<AppProps> = ({ className = '' }) => {
       
       <Router>
         <Routes>
-          {/* Home route - redirects to scans */}
-          <Route path="/" element={<HomePage />} />
+          {/* Home route - redirects to dashboard */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          
+          {/* Dashboard route */}
+          <Route 
+            path="/dashboard" 
+            element={<Dashboard />}
+          />
           
           {/* Test page for debugging */}
           <Route 

@@ -10,6 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useReport } from '../hooks/useApi';
 import { StaticAnalysisFinding, LLMReview, SeverityLevel } from '../types';
 import DiagramDisplay from '../components/DiagramDisplay';
+import FeedbackButton from '../components/FeedbackButton';
 
 interface ReportViewProps {
   className?: string;
@@ -399,6 +400,18 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                 )}
 
                 {finding.code_snippet && renderCodeSnippet(finding.code_snippet, finding.file_path)}
+
+                {/* Feedback Button for Finding */}
+                <FeedbackButton
+                  scanId={report.scan_info.scan_id}
+                  itemId={finding.id}
+                  feedbackType="finding"
+                  itemContent={finding.message}
+                  ruleId={finding.rule_id}
+                  onFeedbackSubmitted={(response) => {
+                    console.log('Feedback submitted for finding:', response);
+                  }}
+                />
               </div>
             ))}
 
@@ -449,6 +462,18 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                   {insight.model_used && ` • Model: ${insight.model_used}`}
                 </div>
               )}
+
+              {/* Feedback Button for LLM Insight */}
+              <FeedbackButton
+                scanId={report.scan_info.scan_id}
+                itemId={`insight-${index}`}
+                feedbackType="llm_insight"
+                itemContent={insight.content}
+                suggestionType={insight.section}
+                onFeedbackSubmitted={(response) => {
+                  console.log('Feedback submitted for insight:', response);
+                }}
+              />
             </div>
           ))}
 
@@ -475,6 +500,18 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                 {diagram.diagram_type} - {diagram.format}
               </h3>
               <DiagramDisplay diagram={diagram} />
+              
+              {/* Feedback Button for Diagram */}
+              <FeedbackButton
+                scanId={report.scan_info.scan_id}
+                itemId={`diagram-${index}`}
+                feedbackType="diagram"
+                itemContent={`${diagram.diagram_type} diagram`}
+                suggestionType={diagram.format}
+                onFeedbackSubmitted={(response) => {
+                  console.log('Feedback submitted for diagram:', response);
+                }}
+              />
             </div>
           ))}
 

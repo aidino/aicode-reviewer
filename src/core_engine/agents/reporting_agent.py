@@ -199,7 +199,7 @@ class ReportingAgent:
         return category_counts
     
     def _process_llm_insights(self, llm_insights: str) -> Dict:
-        """Process and structure LLM insights."""
+        """Process and structure LLM insights with XAI data extraction."""
         if not llm_insights or not llm_insights.strip():
             return {"insights": "", "has_content": False}
         
@@ -208,8 +208,47 @@ class ReportingAgent:
         current_section = "general"
         current_content = []
         
+        # XAI data extraction
+        import re
+        xai_data = {
+            "confidence_scores": [],
+            "reasoning_points": [],
+            "evidence_items": [],
+            "alternatives": []
+        }
+        
         for line in llm_insights.split('\n'):
             line = line.strip()
+            
+            # Extract XAI components
+            # Extract confidence scores
+            confidence_match = re.search(r'\*\*Confidence:\*\*\s*(\d+\.?\d*)', line, re.IGNORECASE)
+            if confidence_match:
+                confidence_score = float(confidence_match.group(1))
+                xai_data["confidence_scores"].append(confidence_score)
+            
+            # Extract reasoning
+            reasoning_match = re.search(r'\*\*Reasoning:\*\*\s*(.*)', line, re.IGNORECASE)
+            if reasoning_match:
+                reasoning = reasoning_match.group(1).strip()
+                if reasoning:
+                    xai_data["reasoning_points"].append(reasoning)
+            
+            # Extract evidence
+            evidence_match = re.search(r'\*\*Evidence:\*\*\s*(.*)', line, re.IGNORECASE)
+            if evidence_match:
+                evidence = evidence_match.group(1).strip()
+                if evidence:
+                    xai_data["evidence_items"].append(evidence)
+            
+            # Extract alternatives
+            alternatives_match = re.search(r'\*\*Alternatives:\*\*\s*(.*)', line, re.IGNORECASE)
+            if alternatives_match:
+                alternatives = alternatives_match.group(1).strip()
+                if alternatives:
+                    xai_data["alternatives"].append(alternatives)
+            
+            # Section processing
             if line.startswith('##') and line.endswith(':'):
                 # Save previous section
                 if current_content:
@@ -233,12 +272,24 @@ class ReportingAgent:
         if current_content:
             sections[current_section] = '\n'.join(current_content).strip()
         
+        # Calculate XAI summary metrics
+        avg_confidence = sum(xai_data["confidence_scores"]) / len(xai_data["confidence_scores"]) if xai_data["confidence_scores"] else None
+        
         return {
             "insights": llm_insights,
             "has_content": True,
             "sections": sections,
             "word_count": len(llm_insights.split()),
-            "line_count": len(llm_insights.split('\n'))
+            "line_count": len(llm_insights.split('\n')),
+            # XAI specific fields
+            "xai_data": xai_data,
+            "xai_summary": {
+                "total_confidence_scores": len(xai_data["confidence_scores"]),
+                "average_confidence": round(avg_confidence, 2) if avg_confidence else None,
+                "reasoning_points_count": len(xai_data["reasoning_points"]),
+                "evidence_items_count": len(xai_data["evidence_items"]),
+                "alternatives_count": len(xai_data["alternatives"])
+            }
         }
     
     def _format_header(self, scan_info: Dict) -> str:
@@ -349,7 +400,7 @@ class ReportingAgent:
         return findings_md
     
     def _format_llm_insights(self, llm_review: Dict) -> str:
-        """Format LLM analysis insights section."""
+        """Format LLM analysis insights section with XAI data."""
         insights_md = "## 🤖 AI Analysis & Insights\n\n"
         
         insights = llm_review.get("insights", "")
@@ -357,12 +408,51 @@ class ReportingAgent:
             insights_md += "No AI analysis available.\n"
             return insights_md
         
+        # Add XAI summary if available
+        xai_summary = llm_review.get("xai_summary", {})
+        if xai_summary and xai_summary.get("total_confidence_scores", 0) > 0:
+            insights_md += "### 🎯 Explainable AI (XAI) Summary\n\n"
+            
+            avg_confidence = xai_summary.get("average_confidence")
+            if avg_confidence is not None:
+                confidence_emoji = "🟢" if avg_confidence >= 0.8 else "🟡" if avg_confidence >= 0.6 else "🔴"
+                insights_md += f"**Overall Confidence:** {confidence_emoji} {avg_confidence}/1.0\n\n"
+            
+            insights_md += f"**Analysis Depth:**\n"
+            insights_md += f"- 🧠 {xai_summary.get('reasoning_points_count', 0)} reasoning explanations\n"
+            insights_md += f"- 📊 {xai_summary.get('evidence_items_count', 0)} evidence citations\n"
+            insights_md += f"- 🔄 {xai_summary.get('alternatives_count', 0)} alternative approaches\n"
+            insights_md += f"- ✅ {xai_summary.get('total_confidence_scores', 0)} confidence assessments\n\n"
+            
+            insights_md += "---\n\n"
+        
         # Add LLM analysis directly (it's already well-formatted)
         insights_md += insights
         
+        # Add XAI details if available
+        xai_data = llm_review.get("xai_data", {})
+        if xai_data and any(xai_data.values()):
+            insights_md += "\n\n---\n\n### 🔍 Explainability Details\n\n"
+            
+            # Confidence distribution
+            confidence_scores = xai_data.get("confidence_scores", [])
+            if confidence_scores:
+                high_conf = sum(1 for c in confidence_scores if c >= 0.8)
+                med_conf = sum(1 for c in confidence_scores if 0.6 <= c < 0.8)
+                low_conf = sum(1 for c in confidence_scores if c < 0.6)
+                
+                insights_md += "**Confidence Distribution:**\n"
+                if high_conf > 0:
+                    insights_md += f"- 🟢 High (≥0.8): {high_conf} findings\n"
+                if med_conf > 0:
+                    insights_md += f"- 🟡 Medium (0.6-0.8): {med_conf} findings\n"
+                if low_conf > 0:
+                    insights_md += f"- 🔴 Low (<0.6): {low_conf} findings\n"
+                insights_md += "\n"
+        
         # Add metadata if available
         if llm_review.get("word_count"):
-            insights_md += f"\n\n*Analysis contains {llm_review['word_count']} words.*"
+            insights_md += f"\n\n*Analysis contains {llm_review['word_count']} words with explainable AI enhancements.*"
         
         return insights_md
     

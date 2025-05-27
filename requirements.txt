@@ -47,6 +47,7 @@ pytest
 pytest-cov
 pytest-asyncio
 pytest-benchmark
+freezegun
 
 # HTTP client for testing FastAPI
 httpx 

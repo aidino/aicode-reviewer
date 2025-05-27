@@ -65,9 +65,16 @@ class SolutionSuggestionAgent:
 {code_snippet}
 ```
 
-## Task
-Please provide a detailed solution for this code issue. Your response should include:
+## Task with XAI Requirements
+Please provide a detailed solution for this code issue with EXPLAINABLE AI requirements:
 
+CRITICAL: You MUST include for every recommendation:
+- **Reasoning**: WHY this solution is recommended
+- **Confidence**: Numerical confidence score 0.0-1.0
+- **Evidence**: Specific code patterns or principles supporting this solution
+- **Alternatives**: Other possible approaches if confidence < 0.8
+
+Your response should include:
 1. **WHY**: Explain clearly why this is an issue and what problems it could cause
 2. **WHAT**: Describe exactly what needs to be changed
 3. **HOW**: Provide specific, actionable code changes or suggestions
@@ -78,35 +85,49 @@ Please structure your response as follows:
 
 ### Explanation
 [Clear explanation of why this is an issue]
+**Reasoning:** [Why you identified this as problematic]
+**Confidence:** [0.0-1.0]
+**Evidence:** [Specific patterns or violations observed]
 
 ### Impact
 [What problems this could cause if not fixed]
+**Reasoning:** [Why these consequences would occur]
+**Confidence:** [0.0-1.0]
+**Evidence:** [Supporting principles or examples]
 
 ### Solution
 [Specific steps to fix the issue]
+**Reasoning:** [Why this approach is best]
+**Confidence:** [0.0-1.0]
+**Evidence:** [Best practices or patterns supporting this solution]
+**Alternatives:** [Other viable approaches if confidence < 0.8]
 
 ### Suggested Code
 ```python
 [Provide the corrected code or specific changes]
 ```
+**Reasoning:** [Why this specific code change]
+**Confidence:** [0.0-1.0]
 
 ### Best Practices
 [Additional recommendations and best practices]
+**Reasoning:** [Why these practices are important]
+**Confidence:** [0.0-1.0]
 
-Focus on being specific and actionable. Avoid generic advice.
+Focus on being specific and actionable. INCLUDE reasoning and confidence for ALL suggestions.
 """
         
         return prompt
     
     def _parse_llm_response(self, llm_response: str) -> Dict[str, str]:
         """
-        Parse LLM response into structured components.
+        Parse LLM response into structured components with XAI data.
         
         Args:
             llm_response (str): Raw LLM response
             
         Returns:
-            Dict[str, str]: Parsed response components
+            Dict[str, str]: Parsed response components including reasoning and confidence
         """
         parsed = {
             'explanation': '',
@@ -114,6 +135,10 @@ Focus on being specific and actionable. Avoid generic advice.
             'solution': '',
             'suggested_code': '',
             'best_practices': '',
+            'reasoning': '',
+            'confidence_scores': {},
+            'evidence': '',
+            'alternatives': '',
             'raw_response': llm_response
         }
         
@@ -137,6 +162,34 @@ Focus on being specific and actionable. Avoid generic advice.
             if code_matches:
                 # Take the last code block as the suggested code
                 parsed['suggested_code'] = code_matches[-1].strip()
+            
+            # Extract XAI specific elements
+            # Extract confidence scores
+            confidence_pattern = r'\*\*Confidence:\*\*\s*(\d+\.?\d*)'
+            confidence_matches = re.findall(confidence_pattern, llm_response, re.IGNORECASE)
+            if confidence_matches:
+                parsed['confidence_scores'] = {
+                    'overall': float(confidence_matches[0]) if confidence_matches else 0.5,
+                    'all_scores': [float(score) for score in confidence_matches]
+                }
+            
+            # Extract reasoning
+            reasoning_pattern = r'\*\*Reasoning:\*\*\s*(.*?)(?=\*\*|\n\n|\Z)'
+            reasoning_matches = re.findall(reasoning_pattern, llm_response, re.DOTALL | re.IGNORECASE)
+            if reasoning_matches:
+                parsed['reasoning'] = ' | '.join(match.strip() for match in reasoning_matches)
+            
+            # Extract evidence
+            evidence_pattern = r'\*\*Evidence:\*\*\s*(.*?)(?=\*\*|\n\n|\Z)'
+            evidence_matches = re.findall(evidence_pattern, llm_response, re.DOTALL | re.IGNORECASE)
+            if evidence_matches:
+                parsed['evidence'] = ' | '.join(match.strip() for match in evidence_matches)
+            
+            # Extract alternatives
+            alternatives_pattern = r'\*\*Alternatives:\*\*\s*(.*?)(?=\*\*|\n\n|\Z)'
+            alternatives_matches = re.findall(alternatives_pattern, llm_response, re.DOTALL | re.IGNORECASE)
+            if alternatives_matches:
+                parsed['alternatives'] = ' | '.join(match.strip() for match in alternatives_matches)
             
             # If no structured sections found, try to extract basic content
             if not any(parsed[key] for key in ['explanation', 'solution']):
@@ -182,7 +235,7 @@ Focus on being specific and actionable. Avoid generic advice.
             # Parse response into structured format
             parsed_solution = self._parse_llm_response(llm_response)
             
-            # Add metadata
+            # Add metadata with XAI data
             solution = {
                 'finding_id': finding.get('rule_id', 'unknown'),
                 'category': finding.get('category', 'general'),
@@ -194,7 +247,12 @@ Focus on being specific and actionable. Avoid generic advice.
                 'solution_steps': parsed_solution['solution'],
                 'suggested_code': parsed_solution['suggested_code'],
                 'best_practices': parsed_solution['best_practices'],
-                'confidence': 'high',  # Could be enhanced with actual confidence scoring
+                # XAI specific fields
+                'xai_reasoning': parsed_solution['reasoning'],
+                'xai_confidence_scores': parsed_solution['confidence_scores'],
+                'xai_evidence': parsed_solution['evidence'],
+                'xai_alternatives': parsed_solution['alternatives'],
+                'confidence': parsed_solution['confidence_scores'].get('overall', 0.7) if parsed_solution['confidence_scores'] else 0.7,
                 'generated_at': datetime.now().isoformat(),
                 'raw_llm_response': parsed_solution['raw_response']
             }
