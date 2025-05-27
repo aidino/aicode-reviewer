@@ -1,7 +1,6 @@
-"""
 from typing import Dict, List, Optional, Any
 from neo4j import GraphDatabase
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 from .schema import CodeNode, CodeEdge, CodeGraph, CYPHER_QUERIES
 
@@ -144,5 +143,4 @@ class Neo4jClient:
         return {
             'nodes': [dict(node) for node in path.nodes],
             'relationships': [dict(rel) for rel in path.relationships]
-        }
-""" 
+        } 

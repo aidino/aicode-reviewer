@@ -438,13 +438,55 @@ def static_analysis_node(state: GraphState) -> Dict[str, Any]:
         
         return {
             "static_analysis_findings": all_findings,
-            "current_step": "llm_analysis"
+            "current_step": "impact_analysis"
         }
         
     except Exception as e:
         logger.error(f"Error in static_analysis_node: {str(e)}")
         return {
             "error_message": f"Failed to perform static analysis: {str(e)}",
+            "current_step": "error"
+        }
+
+
+def impact_analysis_node(state: GraphState) -> Dict[str, Any]:
+    """
+    Node thực hiện phân tích tác động thay đổi (impact analysis).
+    Sử dụng ImpactAnalysisAgent để xác định các thực thể bị ảnh hưởng bởi diff và dependency graph.
+    """
+    logger.info("Running impact analysis node")
+    try:
+        from src.core_engine.agents.impact_analysis.impact_analysis_agent import ImpactAnalysisAgent
+        from src.core_engine.agents.impact_analysis.models import ImpactAnalysisInput
+
+        pr_diff = state.get("pr_diff")
+        workflow_metadata = state.get("workflow_metadata", {})
+        changed_files = workflow_metadata.get("changed_files")
+        dependency_graph = workflow_metadata.get("dependency_graph", {})
+        # Nếu không có dependency_graph, tạo rỗng
+        if dependency_graph is None:
+            dependency_graph = {}
+        # Nếu không có diff, bỏ qua node này
+        if not pr_diff and not changed_files:
+            logger.info("No diff or changed files, skipping impact analysis")
+            return {"current_step": "llm_analysis"}
+        # Chuẩn bị input cho agent
+        input_data = ImpactAnalysisInput(
+            diff=pr_diff or "",
+            dependency_graph=dependency_graph,
+            changed_files=changed_files
+        )
+        agent = ImpactAnalysisAgent()
+        result = agent.analyze_impact(input_data)
+        logger.info(f"Impact analysis found {len(result.impacted_entities)} impacted entities")
+        return {
+            "impact_analysis_result": result.model_dump(),
+            "current_step": "llm_analysis"
+        }
+    except Exception as e:
+        logger.error(f"Error in impact_analysis_node: {str(e)}")
+        return {
+            "error_message": f"Failed to perform impact analysis: {str(e)}",
             "current_step": "error"
         }
 
@@ -632,14 +674,12 @@ def reporting_node(state: GraphState) -> Dict[str, Any]:
     logger.info("Generating code review report")
     
     try:
-        # Import ReportingAgent
         from src.core_engine.agents.reporting_agent import ReportingAgent
-        
         static_findings = state.get("static_analysis_findings", [])
         llm_insights = state.get("llm_insights", "")
         project_scan_result = state.get("project_scan_result")
         workflow_metadata = state.get("workflow_metadata", {})
-        
+        impact_analysis_result = state.get("impact_analysis_result")
         # Prepare scan details for the report
         scan_details = {
             "repo_url": state.get("repo_url", ""),
@@ -649,32 +689,22 @@ def reporting_node(state: GraphState) -> Dict[str, Any]:
             "total_files": workflow_metadata.get("total_files", 0),
             "successful_parses": workflow_metadata.get("successful_parses", 0),
             "scan_id": f"scan_{int(__import__('time').time())}",
-            "project_scan_result": project_scan_result
+            "project_scan_result": project_scan_result,
+            "impact_analysis_result": impact_analysis_result,
         }
-        
-        # Initialize ReportingAgent
         reporting_agent = ReportingAgent()
-        
         logger.info(f"Generating report for {len(static_findings)} findings")
-        
-        # Generate structured report data
         report_data = reporting_agent.generate_report_data(
             static_findings=static_findings,
             llm_insights=llm_insights,
             scan_details=scan_details
         )
-        
-        # Generate Markdown formatted report
         markdown_report = reporting_agent.format_markdown_report(report_data)
-        
-        # Generate JSON export
         json_report = reporting_agent.export_json(report_data)
-        
         logger.info("Code review report generated successfully")
         logger.info(f"Report contains {len(static_findings)} static analysis findings")
         logger.info(f"Markdown report: {len(markdown_report)} characters")
         logger.info(f"JSON report: {len(json_report)} characters")
-        
         return {
             "report_data": report_data,
             "markdown_report": markdown_report,
@@ -687,7 +717,6 @@ def reporting_node(state: GraphState) -> Dict[str, Any]:
                 "report_agent_version": reporting_agent.report_version
             }
         }
-        
     except Exception as e:
         logger.error(f"Error in reporting_node: {str(e)}")
         return {
@@ -780,6 +809,8 @@ def should_continue_or_error(state: GraphState) -> str:
         return "parse_code"
     elif current_step == "static_analysis":
         return "static_analysis"
+    elif current_step == "impact_analysis":
+        return "impact_analysis"
     elif current_step == "llm_analysis":
         return "llm_analysis"
     elif current_step == "project_scanning":
@@ -841,6 +872,7 @@ def compile_graph() -> CompiledGraph:
     workflow.add_node("fetch_code", fetch_code_node)
     workflow.add_node("parse_code", parse_code_node)
     workflow.add_node("static_analysis", static_analysis_node)
+    workflow.add_node("impact_analysis", impact_analysis_node)
     workflow.add_node("llm_analysis", llm_analysis_node)
     workflow.add_node("project_scanning", project_scanning_node)
     workflow.add_node("reporting", reporting_node)
@@ -885,11 +917,12 @@ def compile_graph() -> CompiledGraph:
     )
     
     # Add conditional edges for analysis and reporting steps
-    for node_name in ["llm_analysis", "project_scanning", "reporting"]:
+    for node_name in ["impact_analysis", "llm_analysis", "project_scanning", "reporting"]:
         workflow.add_conditional_edges(
             node_name,
             should_continue_or_error,
             {
+                "impact_analysis": "impact_analysis",
                 "llm_analysis": "llm_analysis",
                 "project_scanning": "project_scanning",
                 "reporting": "reporting",

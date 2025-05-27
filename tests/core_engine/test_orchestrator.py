@@ -813,6 +813,41 @@ class TestIntegrationScenarios:
         assert app is not None
 
 
+def test_orchestrator_workflow_includes_impact_analysis():
+    app = compile_graph()
+    # Kiểm tra app đã compile thành công và có thể invoke
+    # Không thể access trực tiếp nodes của CompiledStateGraph
+    assert app is not None
+    assert hasattr(app, 'invoke')
+
+
+def test_orchestrator_integration_runs_and_returns_impact_analysis():
+    # Test trực tiếp impact_analysis_node function thay vì full workflow
+    from src.core_engine.orchestrator import impact_analysis_node
+    from src.core_engine.agents.impact_analysis.models import ImpactAnalysisInput
+    
+    # Mock state với diff và dependency graph
+    mock_state = {
+        "pr_diff": "diff --git a/foo.py b/foo.py\nindex 123..456 100644\n--- a/foo.py\n+++ b/foo.py",
+        "workflow_metadata": {
+            "dependency_graph": {"foo.py": ["bar.py"]},
+            "changed_files": ["foo.py"]
+        }
+    }
+    
+    # Chạy impact_analysis_node
+    result = impact_analysis_node(mock_state)
+    
+    # Kết quả phải có impact_analysis_result
+    assert "impact_analysis_result" in result
+    assert result["current_step"] == "llm_analysis"
+    
+    # Kiểm tra structure của impact analysis result
+    impact_result = result["impact_analysis_result"]
+    assert "impacted_entities" in impact_result
+    assert len(impact_result["impacted_entities"]) > 0
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"]) 

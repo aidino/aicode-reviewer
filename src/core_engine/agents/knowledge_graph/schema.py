@@ -1,4 +1,4 @@
-"""
+# Schema cho knowledge graph codebase
 from enum import Enum
 from typing import Dict, List, Optional
 from pydantic import BaseModel
@@ -75,5 +75,4 @@ CYPHER_QUERIES = {
     MATCH path = (start {name: $name})-[:CALLS|USES|DEPENDS*1..2]-(related)
     RETURN path
     '''
-}
-""" 
+} 

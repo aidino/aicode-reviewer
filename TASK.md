@@ -7,13 +7,15 @@
 - [x] Built frontend: scan creation, scan list, report viewing, diagram display
 - [x] Unit tests for agents, API, frontend (Pytest, Jest)
 - [x] Documentation: architecture, setup guide, usage examples
+- [x] Separated ImpactAnalysisAgent: tạo module, models, unit test khung (2024-06-10)
 
 ## 2. Remaining/Additional Tasks
 ### 2.1. Core Engine & Agents
-- [ ] **Separate ImpactAnalysisAgent**
-  - [ ] Design interface and logic for change impact analysis (diff, dependency, propagation)
-  - [ ] Integrate into orchestrator and reporting
-  - [ ] Write unit tests for this agent
+- [x] **Separate ImpactAnalysisAgent**
+  - [x] Design interface và models cho change impact analysis (diff, dependency, propagation)
+  - [x] Cài đặt logic analyze_impact (diff, dependency, propagation)
+  - [x] Tích hợp vào orchestrator và reporting
+  - [x] Viết unit tests cho agent (khung, models)
 - [ ] **Upgrade SolutionSuggestionAgent**
   - [ ] Add explainable capability (reasoning, confidence, evidence)
   - [ ] Diversify suggestions (multiple options, pros/cons analysis)

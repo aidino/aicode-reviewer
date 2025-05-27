@@ -1,0 +1,17 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SequenceDiagramViewer > matches snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="sequence-diagram-viewer sequence-loading "
+  >
+    <div
+      style="padding: 20px; text-align: center; border: 1px solid rgb(224, 224, 224); border-radius: 4px;"
+    >
+      <div>
+        Loading sequence diagram...
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;

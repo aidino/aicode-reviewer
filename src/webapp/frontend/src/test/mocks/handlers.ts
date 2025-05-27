@@ -40,69 +40,62 @@ const mockScans: ScanListItem[] = [
 const mockReport: ReportDetail = {
   scan_info: {
     scan_id: 'demo_scan_001',
-    scan_type: 'pr',
     repository: 'user/test-repo',
-    branch: 'feature/new-feature',
+    scan_type: 'pr',
     pr_id: 123,
-    target_branch: 'main',
-    source_branch: 'feature/new-feature',
-    commit_hash: 'abc123def456',
-    created_at: '2025-01-28T10:00:00Z',
-    completed_at: '2025-01-28T10:05:00Z',
+    branch: 'feature/new-feature',
+    timestamp: '2025-01-28T10:00:00Z',
+    report_version: '1.0.0',
   },
   summary: {
     total_findings: 5,
-    critical_count: 1,
-    high_count: 2,
-    medium_count: 1,
-    low_count: 1,
+    severity_breakdown: {
+      'Error': 1,
+      'Warning': 2,
+      'Info': 1,
+      'Unknown': 1,
+    },
+    category_breakdown: {
+      'Security': 1,
+      'Performance': 2,
+      'Code Quality': 2,
+    },
     scan_status: 'completed',
     has_llm_analysis: true,
-    execution_time_seconds: 300,
   },
   static_analysis_findings: [
     {
-      id: 'finding_1',
       rule_id: 'security.hardcoded_secret',
-      severity: 'critical',
+      severity: 'Error',
       category: 'Security',
       message: 'Hardcoded API key detected',
-      file_path: 'src/config.py',
-      line_number: 15,
-      column_number: 10,
+      file: 'src/config.py',
+      line: 15,
+      column: 10,
       suggestion: 'Store sensitive data in environment variables',
-      code_snippet: 'API_KEY = "sk-1234567890abcdef"',
     },
     {
-      id: 'finding_2',
       rule_id: 'performance.inefficient_loop',
-      severity: 'high',
+      severity: 'Warning',
       category: 'Performance',
       message: 'Inefficient nested loop detected',
-      file_path: 'src/utils.py',
-      line_number: 42,
+      file: 'src/utils.py',
+      line: 42,
       suggestion: 'Consider using dictionary lookup or set operations',
-      code_snippet: 'for item in list1:\n    for item2 in list2:\n        if item == item2:',
     },
   ],
-  llm_analysis: [
-    {
-      section: 'Security Analysis',
-      content: 'The code contains potential security vulnerabilities:\n\n1. Hardcoded secrets in configuration files\n2. Missing input validation in user-facing endpoints\n\nRecommendations:\n- Use environment variables for sensitive data\n- Implement proper input sanitization',
-      confidence_score: 0.85,
-      model_used: 'gpt-4',
+  llm_review: {
+    insights: 'The code contains security vulnerabilities and performance issues. See sections for details.',
+    has_content: true,
+    sections: {
+      'Security Analysis': 'The code contains potential security vulnerabilities:\n\n1. Hardcoded secrets in configuration files\n2. Missing input validation in user-facing endpoints\n\nRecommendations:\n- Use environment variables for sensitive data\n- Implement proper input sanitization',
+      'Code Quality': 'Overall code quality is good with some areas for improvement:\n\n1. Function complexity could be reduced\n2. Missing docstrings in some modules\n\nRecommendations:\n- Break down large functions\n- Add comprehensive documentation',
     },
-    {
-      section: 'Code Quality',
-      content: 'Overall code quality is good with some areas for improvement:\n\n1. Function complexity could be reduced\n2. Missing docstrings in some modules\n\nRecommendations:\n- Break down large functions\n- Add comprehensive documentation',
-      confidence_score: 0.78,
-      model_used: 'gpt-4',
-    },
-  ],
+  },
   diagrams: [
     {
-      diagram_type: 'Class Diagram',
-      diagram_content: `@startuml
+      type: 'Class Diagram',
+      content: `@startuml
 class User {
   +String name
   +String email
@@ -115,25 +108,23 @@ class Admin {
 User <|-- Admin
 @enduml`,
       format: 'plantuml',
-      metadata: {
-        generated_at: '2025-01-28T10:03:00Z',
-        complexity_score: 0.6,
-      },
+      title: 'Class Diagram - plantuml',
     },
   ],
   metadata: {
+    agent_versions: {
+      'static_analysis': '1.0.0',
+      'llm_analysis': '1.0.0',
+    },
+    generation_time: '2025-01-28T10:05:00Z',
     total_files_analyzed: 25,
-    languages_detected: ['Python', 'JavaScript'],
-    analysis_duration_seconds: 300,
-    llm_provider: 'openai',
-    llm_model: 'gpt-4',
-    timestamp: '2025-01-28T10:05:00Z',
+    successful_parses: 25,
   },
 };
 
 export const handlers = [
-  // Get scans list - note: MSW needs full URL pattern or path pattern
-  http.get('http://localhost:8000/scans', ({ request }) => {
+  // Get scans list - với prefix /api/
+  http.get('/api/scans/', ({ request }) => {
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const offset = parseInt(url.searchParams.get('offset') || '0');
@@ -143,7 +134,7 @@ export const handlers = [
     return HttpResponse.json(paginatedScans);
   }),
   
-  // Alternative pattern for relative paths
+  // Fallback pattern without /api/
   http.get('/scans', ({ request }) => {
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '50');
@@ -154,8 +145,8 @@ export const handlers = [
     return HttpResponse.json(paginatedScans);
   }),
 
-  // Get scan report - full URL pattern
-  http.get('http://localhost:8000/scans/:scanId/report', ({ params }) => {
+  // Get scan report - với prefix /api/
+  http.get('/api/scans/:scanId/report', ({ params }) => {
     const { scanId } = params;
     
     if (scanId === 'nonexistent') {
@@ -184,7 +175,7 @@ export const handlers = [
     return HttpResponse.json(report);
   }),
 
-  // Get scan report - relative path pattern
+  // Get scan report - fallback pattern without /api/
   http.get('/scans/:scanId/report', ({ params }) => {
     const { scanId } = params;
     

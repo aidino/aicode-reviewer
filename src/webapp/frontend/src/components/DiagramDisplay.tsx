@@ -209,7 +209,7 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
 
   // Effect to render diagram when content changes
   useEffect(() => {
-    if (!diagram || !diagram.diagram_content) {
+    if (!diagram || !diagram.content) {
       setState({
         loading: false,
         error: 'No diagram content provided',
@@ -226,33 +226,37 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
 
     // Determine diagram type and render accordingly
     const format = diagram.format?.toLowerCase() || '';
-    const diagramType = diagram.diagram_type?.toLowerCase() || '';
+    const diagramType = diagram.type?.toLowerCase() || '';
     
     // Check if it's a Mermaid diagram
     if (format.includes('mermaid') || diagramType.includes('mermaid') || 
-        diagram.diagram_content.includes('graph') || 
-        diagram.diagram_content.includes('flowchart') ||
-        diagram.diagram_content.includes('classDiagram') ||
-        diagram.diagram_content.includes('sequenceDiagram')) {
-      renderMermaid(diagram.diagram_content);
+        diagram.content.includes('graph') || 
+        diagram.content.includes('flowchart') ||
+        diagram.content.includes('classDiagram') ||
+        diagram.content.includes('sequenceDiagram')) {
+      renderMermaid(diagram.content);
     }
     // Check if it's a PlantUML diagram
     else if (format.includes('plantuml') || diagramType.includes('plantuml') || 
-             diagram.diagram_content.includes('@startuml') || 
-             diagram.diagram_content.includes('@startclass')) {
-      renderPlantUML(diagram.diagram_content);
+             diagram.content.includes('@startuml') || 
+             diagram.content.includes('@startclass')) {
+      renderPlantUML(diagram.content);
     }
     // Default to PlantUML for class diagrams
     else if (diagramType.includes('class')) {
-      renderPlantUML(diagram.diagram_content);
+      renderPlantUML(diagram.content);
     }
     // Default to Mermaid for sequence diagrams
     else if (diagramType.includes('sequence')) {
-      renderMermaid(diagram.diagram_content);
+      renderMermaid(diagram.content);
     }
-    // Fallback: try to detect from content
+    // Fallback: detect unsupported type
     else {
-      renderMermaid(diagram.diagram_content);
+      setState({
+        loading: false,
+        error: `Unsupported diagram type: ${diagram.type}`,
+        rendered: false,
+      });
     }
   }, [diagram, enableInteraction]);
 
@@ -334,7 +338,7 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
             marginTop: '8px',
             overflow: 'auto' 
           }}>
-            {diagram.diagram_content}
+            {diagram.content}
           </pre>
         </details>
       </div>
@@ -364,14 +368,14 @@ const DiagramDisplay: React.FC<DiagramDisplayProps> = ({
           width: '100%',
         }}
       />
-      {diagram.diagram_type && (
+      {diagram.type && (
         <div style={{
           fontSize: '0.9em',
           color: '#666',
           marginTop: '8px',
           fontStyle: 'italic',
         }}>
-          {diagram.diagram_type} diagram
+          {diagram.type} diagram
         </div>
       )}
     </div>

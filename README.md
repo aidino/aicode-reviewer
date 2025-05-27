@@ -10,7 +10,7 @@ The core mission is to significantly improve code quality, enhance developer pro
 
 * **Deep Semantic Analysis:** Utilizes LLMs for a nuanced understanding of code logic, intent, and potential bugs beyond simple static checks.  
 * **Hybrid Analysis Model:** Combines the structural precision of AST-based analysis with the contextual understanding of LLMs and Retrieval Augmented Generation (RAG).  
-* **Multi-Agent Architecture:** Employs a system of specialized AI agents (orchestrated by LangGraph) to handle distinct tasks in the review process, such as code fetching, parsing, static analysis, LLM interaction, and report generation.  
+* **Multi-Agent Architecture:** Employs a system of specialized AI agents (orchestrated by LangGraph) to handle distinct tasks in the review process, such as code fetching, parsing, static analysis, impact analysis, LLM interaction, and report generation.  
 * **Interactive Web Application:** Modern React-based frontend with interactive diagram visualization, zoom/pan capabilities, and specialized language viewers.
 * **Actionable Error Resolution:** Focuses on generating clear, context-aware, and practical suggestions to help developers easily fix identified issues.  
 * **Advanced Diagram Generation:** Generates interactive class diagrams and sequence diagrams (using PlantUML/Mermaid.js) with timeline navigation and export capabilities.
@@ -20,6 +20,7 @@ The core mission is to significantly improve code quality, enhance developer pro
 * **Comprehensive Reporting:** Produces detailed reports with interactive visualization, filtering, and export capabilities.
 * **Standalone & Self-Hosted:** Designed to operate as an independent tool, self-hosted by the user to ensure data privacy and control over proprietary code.  
 * **Open Source Prioritization:** Built with a strong preference for open-source technologies and components.
+* **Change Impact Analysis:** Phân tích tác động của thay đổi mã nguồn (ImpactAnalysisAgent) giúp xác định các file, class, function bị ảnh hưởng trực tiếp/gián tiếp bởi diff hoặc PR, hỗ trợ đánh giá rủi ro lan truyền và ưu tiên review.
 
 ## **Strategic Value**
 
@@ -273,11 +274,23 @@ The system follows a modern, scalable architecture:
 - **Frontend Layer**: React SPA with TypeScript, component-based architecture
 - **API Layer**: FastAPI with async support, automatic OpenAPI documentation
 - **Orchestration Layer**: Multi-Agent System using LangGraph for workflow management
-- **Analysis Engine**: AST-based static analysis + LLM semantic analysis + Risk prediction
+- **Analysis Engine**: AST-based static analysis + Impact analysis (diff/dependency propagation) + LLM semantic analysis + Risk prediction
 - **Diagramming Engine**: PlantUML/Mermaid generation with interactive frontend rendering
 - **Data Layer**: JSON-based reports with future database integration support
 
-For detailed architecture information, see `docs/PLANNING.md`.
+### **Orchestrator Workflow (LangGraph)**
+
+1. **start_scan**: Validate scan request, khởi tạo workflow
+2. **fetch_code_node**: Lấy mã nguồn hoặc diff từ repo/PR
+3. **parse_code_node**: Phân tích mã thành AST (Tree-sitter)
+4. **static_analysis_node**: Phân tích tĩnh theo rule (StaticAnalysisAgent)
+5. **impact_analysis_node**: Phân tích tác động thay đổi (ImpactAnalysisAgent) – xác định các thực thể bị ảnh hưởng trực tiếp/gián tiếp qua diff và dependency graph
+6. **llm_analysis_node**: Phân tích ngữ nghĩa sâu bằng LLM (LLMOrchestratorAgent)
+7. **project_scanning_node**: Tổng hợp kiến trúc, rủi ro toàn dự án (ProjectScanningAgent)
+8. **reporting_node**: Tổng hợp kết quả, sinh báo cáo (ReportingAgent)
+9. **handle_error_node**: Xử lý lỗi và sinh báo cáo lỗi
+
+**ImpactAnalysisAgent** giúp đánh giá nhanh phạm vi ảnh hưởng của thay đổi, hỗ trợ reviewer tập trung vào các khu vực rủi ro cao, và cung cấp dữ liệu lan truyền tác động cho các bước phân tích tiếp theo.
 
 ## **Testing**
 

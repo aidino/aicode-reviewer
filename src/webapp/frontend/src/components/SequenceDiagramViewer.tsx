@@ -213,7 +213,7 @@ const SequenceDiagramViewer: React.FC<SequenceDiagramViewerProps> = ({
 
   // Initialize diagram rendering
   useEffect(() => {
-    if (!diagram || !diagram.diagram_content) {
+    if (!diagram || !diagram.content) {
       setError('No sequence diagram content provided');
       setLoading(false);
       return;
@@ -223,8 +223,8 @@ const SequenceDiagramViewer: React.FC<SequenceDiagramViewerProps> = ({
     setError(null);
     
     // Ensure it's a sequence diagram
-    const content = diagram.diagram_content;
-    if (content.includes('sequenceDiagram') || diagram.diagram_type?.toLowerCase().includes('sequence')) {
+    const content = diagram.content;
+    if (content.includes('sequenceDiagram') || diagram.type?.toLowerCase().includes('sequence')) {
       renderSequenceDiagram(content);
     } else {
       setError('This component is designed for sequence diagrams only');
