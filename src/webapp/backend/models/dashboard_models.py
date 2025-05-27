@@ -92,6 +92,15 @@ class DashboardSummary(BaseModel):
     system_health: SystemHealth = Field(..., description="Current system health status")
 
 
+class HealthCheckResponse(BaseModel):
+    """Health check response model."""
+    status: str = Field(..., description="Service health status")
+    timestamp: datetime = Field(..., description="Health check timestamp")
+    version: str = Field(..., description="Application version")
+    uptime: str = Field(..., description="Service uptime")
+    components: Dict[str, str] = Field(..., description="Component health status")
+
+
 class DashboardQuery(BaseModel):
     """Query parameters for dashboard data retrieval."""
     time_range: TimeRange = Field(default=TimeRange.LAST_30_DAYS, description="Time range for data")
