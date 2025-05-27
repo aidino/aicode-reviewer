@@ -1,5 +1,10 @@
 /* Modern Flat Design System - Global Styles */
 
+/* Import Soft UI Enhanced Styles */
+@import './soft-ui-enhanced.css';
+@import './tailwind-utilities.css';
+@import './DashboardSidebar.css';
+
 /* CSS Reset & Base */
 * {
   box-sizing: border-box;

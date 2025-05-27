@@ -11,8 +11,7 @@ RUN npm install
 # Copy the rest of the frontend application
 COPY src/webapp/frontend/ .
 
-# Build the application
-RUN npm run build
+# Skip build for development mode - we'll run dev server
 
 # Expose the port the app runs on
 EXPOSE 5173

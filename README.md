@@ -12,6 +12,7 @@ The core mission is to significantly improve code quality, enhance developer pro
 * **Hybrid Analysis Model:** Combines the structural precision of AST-based analysis with the contextual understanding of LLMs and Retrieval Augmented Generation (RAG).  
 * **Multi-Agent Architecture:** Employs a system of specialized AI agents (orchestrated by LangGraph) to handle distinct tasks in the review process, such as code fetching, parsing, static analysis, impact analysis, LLM interaction, and report generation.  
 * **Interactive Web Application:** Modern React-based frontend with interactive diagram visualization, zoom/pan capabilities, and specialized language viewers.
+* **Agent Workflow Visualization:** Real-time interactive visualization of multi-agent workflow with React Flow, WebSocket updates, status tracking, and detailed agent insights.
 * **Enhanced XAI Solution Suggestions:** Advanced solution suggestion engine with explainable AI capabilities, multiple alternatives analysis, confidence scoring, evidence-based reasoning, and comprehensive error handling.
 * **Actionable Error Resolution:** Focuses on generating clear, context-aware, and practical suggestions to help developers easily fix identified issues.  
 * **Advanced Diagram Generation:** Generates interactive class diagrams and sequence diagrams (using PlantUML/Mermaid.js) with timeline navigation and export capabilities.
@@ -246,6 +247,7 @@ The system now features a **complete interactive web application** with:
    - Use language-specific viewers for detailed analysis
    - Interact with diagrams (zoom, pan, export)
    - Filter and sort findings by severity or category
+   - **Monitor Agent Workflow**: View real-time agent execution at `/workflow` or `/workflow-demo` for interactive visualization
 
 ### **API Usage**
 
@@ -384,6 +386,7 @@ The web application includes built-in demo data showcasing:
 - **Multi-language Analysis**: Python, Java, Kotlin sample reports
 - **Interactive Diagrams**: Class diagrams and sequence diagrams with zoom/pan
 - **Real-time Processing**: Simulated scan progress with task management
+- **Agent Workflow Visualization**: Interactive multi-agent workflow at `/workflow-demo` with real-time status updates, node interactions, and detailed agent insights
 - **Language-specific Features**: 
   - Java package hierarchy and method signature analysis
   - Kotlin extension functions and coroutine detection

@@ -12,7 +12,7 @@ check_services() {
     echo "Checking services health..."
     while [ $attempt -le $max_attempts ]; do
         # Get service status
-        local unhealthy_services=$(docker-compose ps | grep -v "healthy" | grep -v "NAME" | wc -l)
+        local unhealthy_services=$(docker compose ps | grep -v "healthy" | grep -v "NAME" | wc -l)
         
         if [ $unhealthy_services -eq 0 ]; then
             echo "✅ All services are healthy!"
@@ -21,20 +21,20 @@ check_services() {
         
         echo "Waiting for services to be healthy (attempt $attempt/$max_attempts)..."
         echo "Current status:"
-        docker-compose ps
+        docker compose ps
         sleep $wait_time
         attempt=$((attempt + 1))
     done
 
     echo "❌ Some services are not healthy after $max_attempts attempts"
-    echo "Please check the logs with: docker-compose logs"
+    echo "Please check the logs with: docker compose logs"
     return 1
 }
 
 # Start all services
 echo "Starting services..."
-docker-compose down
-docker-compose up -d --build
+docker compose down
+docker compose up -d --build
 
 echo "Waiting for services to initialize..."
 sleep 20

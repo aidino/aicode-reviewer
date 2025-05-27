@@ -5,9 +5,11 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@types/d3": "^7.4.3",
     "@types/node": "^18.19.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "d3": "^7.9.0",
     "framer-motion": "^10.16.16",
     "lucide-react": "^0.303.0",
     "mermaid": "^10.6.1",
@@ -15,6 +17,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1",
     "react-zoom-pan-pinch": "^3.7.0",
+    "reactflow": "^11.11.4",
     "typescript": "^5.3.3"
   },
   "devDependencies": {
