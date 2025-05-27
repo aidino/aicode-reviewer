@@ -118,6 +118,12 @@ class DashboardService:
                 "total_scans": len(self._mock_scans),
                 "total_findings": len(self._mock_findings),
                 "avg_response_time": "150ms"
+            },
+            components={
+                "api": "operational",
+                "scan_service": "operational",
+                "task_queue": "operational",
+                "database": "operational"
             }
         )
     
@@ -360,6 +366,12 @@ class DashboardService:
                 "error_rate": 0.02,
                 "total_scans": len(self._mock_scans),
                 "total_findings": len(self._mock_findings)
+            },
+            components={
+                "api": "operational",
+                "scan_service": "operational",
+                "task_queue": "operational",
+                "database": "operational"
             }
         )
     

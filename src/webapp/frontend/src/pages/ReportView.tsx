@@ -34,27 +34,17 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'findings' | 'insights' | 'diagrams'>('overview');
   const [findingsFilter, setFindingsFilter] = useState<SeverityLevel | 'all'>('all');
 
-  // Severity level styling
-  const getSeverityStyle = (severity: SeverityLevel): React.CSSProperties => {
-    const baseStyle: React.CSSProperties = {
-      padding: '2px 8px',
-      borderRadius: '12px',
-      fontSize: '0.8em',
-      fontWeight: 'bold',
-      textTransform: 'uppercase',
-    };
-
+  // Severity level styling using CSS classes
+  const getSeverityClass = (severity: SeverityLevel): string => {
     switch (severity) {
-      case 'critical':
-        return { ...baseStyle, backgroundColor: '#ffebee', color: '#c62828' };
-      case 'high':
-        return { ...baseStyle, backgroundColor: '#fff3e0', color: '#ef6c00' };
-      case 'medium':
-        return { ...baseStyle, backgroundColor: '#fff8e1', color: '#f57f17' };
-      case 'low':
-        return { ...baseStyle, backgroundColor: '#e8f5e8', color: '#2e7d32' };
+      case 'Error':
+        return 'badge badge-error';
+      case 'Warning':
+        return 'badge badge-warning';
+      case 'Info':
+        return 'badge badge-success';
       default:
-        return { ...baseStyle, backgroundColor: '#f5f5f5', color: '#666' };
+        return 'badge';
     }
   };
 
@@ -78,21 +68,16 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
     if (!snippet) return null;
 
     return (
-      <div style={{
-        backgroundColor: '#f8f9fa',
-        border: '1px solid #e9ecef',
-        borderRadius: '4px',
-        padding: '12px',
-        marginTop: '8px',
+      <div className="card" style={{
+        backgroundColor: 'var(--color-surface)',
+        marginTop: 'var(--spacing-sm)',
         fontFamily: 'monospace',
-        fontSize: '0.9em',
+        fontSize: 'var(--font-size-sm)',
         overflow: 'auto',
       }}>
-        <div style={{
-          fontSize: '0.8em',
-          color: '#666',
-          marginBottom: '8px',
-          fontWeight: 'bold',
+        <div className="text-muted font-medium" style={{
+          fontSize: 'var(--font-size-xs)',
+          marginBottom: 'var(--spacing-sm)',
         }}>
           {filePath}
         </div>
@@ -106,9 +91,10 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
   // Loading state
   if (loading) {
     return (
-      <div className={`report-view ${className}`} style={{ padding: '20px' }}>
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <div>Loading report...</div>
+      <div className={`report-container ${className}`}>
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <div className="loading-text">Loading report...</div>
         </div>
       </div>
     );
@@ -117,42 +103,16 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
   // Error state
   if (error) {
     return (
-      <div className={`report-view ${className}`} style={{ padding: '20px' }}>
-        <div style={{
-          padding: '20px',
-          backgroundColor: '#ffebee',
-          border: '1px solid #f44336',
-          borderRadius: '4px',
-          color: '#c62828',
-        }}>
-          <strong>Error loading report:</strong> {error.detail}
-          <div style={{ marginTop: '12px' }}>
-            <button
-              onClick={refetch}
-              style={{
-                marginRight: '12px',
-                padding: '6px 12px',
-                backgroundColor: '#f44336',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Retry
+      <div className={`report-container ${className}`}>
+        <div className="error-container">
+          <div className="error-title">Error loading report:</div>
+          <div className="error-message">{error.detail}</div>
+          <div className="flex gap-md" style={{ marginTop: 'var(--spacing-md)' }}>
+            <button onClick={refetch} className="btn btn-primary">
+              🔄 Retry
             </button>
-            <button
-              onClick={() => navigate('/scans')}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: '#666',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Back to Scans
+            <button onClick={() => navigate('/scans')} className="btn btn-outline">
+              ← Back to Scans
             </button>
           </div>
         </div>
@@ -162,41 +122,30 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
 
   if (!report) {
     return (
-      <div className={`report-view ${className}`} style={{ padding: '20px' }}>
-        <div>No report data available</div>
+      <div className={`report-container ${className}`}>
+        <div className="card text-center">
+          <div className="text-muted">No report data available</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`report-view ${className}`} style={{ padding: '20px' }}>
+    <div className={`report-container ${className}`}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px',
-        paddingBottom: '16px',
-        borderBottom: '2px solid #e9ecef',
-      }}>
+      <div className="report-header">
         <div>
-          <h1>Scan Report: {report.scan_info.scan_id}</h1>
-          <div style={{ color: '#666', fontSize: '14px' }}>
-            {report.scan_info.repository} • {formatDate(report.scan_info.created_at)}
+          <h1 className="report-title">Scan Report: {report.scan_info.scan_id}</h1>
+          <div className="report-meta">
+            <span>📁 {report.scan_info.repository}</span>
+            <span>📅 {formatDate(report.scan_info.timestamp)}</span>
           </div>
         </div>
         <button
           onClick={() => navigate('/scans')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#666',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
+          className="btn btn-outline"
         >
-          Back to Scans
+          ← Back to Scans
         </button>
       </div>
 
@@ -209,7 +158,7 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
           {[
             { key: 'overview', label: 'Overview' },
             { key: 'findings', label: `Findings (${report.static_analysis_findings.length})` },
-            { key: 'insights', label: `LLM Insights (${report.llm_analysis.length})` },
+            { key: 'insights', label: `LLM Insights (${report.llm_review.has_content ? 1 : 0})` },
             { key: 'diagrams', label: `Diagrams (${report.diagrams.length})` },
           ].map(tab => (
             <button
@@ -248,20 +197,20 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                 <div style={{ fontSize: '1.5em', fontWeight: 'bold' }}>{report.summary.total_findings}</div>
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Critical</div>
-                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#c62828' }}>{report.summary.critical_count}</div>
+                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Error</div>
+                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#c62828' }}>{report.summary.severity_breakdown.Error || 0}</div>
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>High</div>
-                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#ef6c00' }}>{report.summary.high_count}</div>
+                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Warning</div>
+                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#ef6c00' }}>{report.summary.severity_breakdown.Warning || 0}</div>
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Medium</div>
-                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#f57f17' }}>{report.summary.medium_count}</div>
+                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Info</div>
+                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#f57f17' }}>{report.summary.severity_breakdown.Info || 0}</div>
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Low</div>
-                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#2e7d32' }}>{report.summary.low_count}</div>
+                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Unknown</div>
+                <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: '#2e7d32' }}>{report.summary.severity_breakdown.Unknown || 0}</div>
               </div>
             </div>
           </div>
@@ -299,8 +248,8 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                 <div>{report.metadata.total_files_analyzed}</div>
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Languages</div>
-                <div>{report.metadata.languages_detected.join(', ')}</div>
+                <div style={{ fontWeight: 'bold', color: '#666', fontSize: '0.9em' }}>Successful Parses</div>
+                <div>{report.metadata.successful_parses}</div>
               </div>
             </div>
           </div>
@@ -323,18 +272,18 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
               }}
             >
               <option value="all">All ({report.static_analysis_findings.length})</option>
-              <option value="critical">Critical ({report.summary.critical_count})</option>
-              <option value="high">High ({report.summary.high_count})</option>
-              <option value="medium">Medium ({report.summary.medium_count})</option>
-              <option value="low">Low ({report.summary.low_count})</option>
+              <option value="Error">Error ({report.summary.severity_breakdown.Error || 0})</option>
+              <option value="Warning">Warning ({report.summary.severity_breakdown.Warning || 0})</option>
+              <option value="Info">Info ({report.summary.severity_breakdown.Info || 0})</option>
+              <option value="Unknown">Unknown ({report.summary.severity_breakdown.Unknown || 0})</option>
             </select>
           </div>
 
           {/* Findings List */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {filteredFindings.map((finding) => (
+            {filteredFindings.map((finding, index) => (
               <div
-                key={finding.id}
+                key={index}
                 style={{
                   backgroundColor: 'white',
                   border: '1px solid #e9ecef',
@@ -351,11 +300,11 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                   <div>
                     <h4 style={{ margin: 0, marginBottom: '4px' }}>{finding.message}</h4>
                     <div style={{ fontSize: '0.9em', color: '#666' }}>
-                      {finding.file_path}:{finding.line_number}
-                      {finding.column_number && `:${finding.column_number}`}
+                      {finding.file}:{finding.line}
+                      {finding.column && `:${finding.column}`}
                     </div>
                   </div>
-                  <span style={getSeverityStyle(finding.severity)}>
+                  <span className={getSeverityClass(finding.severity)}>
                     {finding.severity}
                   </span>
                 </div>
@@ -399,12 +348,12 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                   </div>
                 )}
 
-                {finding.code_snippet && renderCodeSnippet(finding.code_snippet, finding.file_path)}
+                {finding.code_snippet && renderCodeSnippet(finding.code_snippet, finding.file)}
 
                 {/* Feedback Button for Finding */}
                 <FeedbackButton
                   scanId={report.scan_info.scan_id}
-                  itemId={finding.id}
+                  itemId={`finding-${index}`}
                   feedbackType="finding"
                   itemContent={finding.message}
                   ruleId={finding.rule_id}
@@ -433,9 +382,8 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
       {/* LLM Insights Tab */}
       {activeTab === 'insights' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {report.llm_analysis.map((insight, index) => (
+          {report.llm_review.has_content ? (
             <div
-              key={index}
               style={{
                 backgroundColor: 'white',
                 border: '1px solid #e9ecef',
@@ -444,40 +392,41 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
               }}
             >
               <h3 style={{ marginTop: 0, marginBottom: '12px', color: '#1976d2' }}>
-                {insight.section}
+                AI Code Review Analysis
               </h3>
               <div style={{
                 lineHeight: '1.6',
                 whiteSpace: 'pre-wrap',
+                marginBottom: '16px',
               }}>
-                {insight.content}
+                {report.llm_review.insights}
               </div>
-              {insight.confidence_score && (
-                <div style={{
-                  marginTop: '12px',
-                  fontSize: '0.9em',
-                  color: '#666',
-                }}>
-                  Confidence: {Math.round(insight.confidence_score * 100)}%
-                  {insight.model_used && ` • Model: ${insight.model_used}`}
+
+              {/* Display sections if available */}
+              {Object.keys(report.llm_review.sections).length > 0 && (
+                <div>
+                  <h4 style={{ marginBottom: '8px', color: '#666' }}>Summary Sections:</h4>
+                  {Object.entries(report.llm_review.sections).map(([key, value]) => (
+                    <div key={key} style={{ marginBottom: '8px' }}>
+                      <strong style={{ textTransform: 'capitalize' }}>{key.replace('_', ' ')}:</strong> {value}
+                    </div>
+                  ))}
                 </div>
               )}
 
               {/* Feedback Button for LLM Insight */}
               <FeedbackButton
                 scanId={report.scan_info.scan_id}
-                itemId={`insight-${index}`}
+                itemId="llm-review"
                 feedbackType="llm_insight"
-                itemContent={insight.content}
-                suggestionType={insight.section}
+                itemContent={report.llm_review.insights}
+                suggestionType="code_review"
                 onFeedbackSubmitted={(response) => {
-                  console.log('Feedback submitted for insight:', response);
+                  console.log('Feedback submitted for LLM review:', response);
                 }}
               />
             </div>
-          ))}
-
-          {report.llm_analysis.length === 0 && (
+          ) : (
             <div style={{
               textAlign: 'center',
               padding: '40px',
@@ -497,7 +446,7 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
           {report.diagrams.map((diagram, index) => (
             <div key={index}>
               <h3 style={{ marginBottom: '16px' }}>
-                {diagram.diagram_type} - {diagram.format}
+                {diagram.type} - {diagram.format}
               </h3>
               <DiagramDisplay diagram={diagram} />
               
@@ -506,7 +455,7 @@ const ReportView: React.FC<ReportViewProps> = ({ className = '' }) => {
                 scanId={report.scan_info.scan_id}
                 itemId={`diagram-${index}`}
                 feedbackType="diagram"
-                itemContent={`${diagram.diagram_type} diagram`}
+                itemContent={`${diagram.type} diagram`}
                 suggestionType={diagram.format}
                 onFeedbackSubmitted={(response) => {
                   console.log('Feedback submitted for diagram:', response);

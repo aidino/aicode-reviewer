@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/Dashboard.css';
+import '../styles/components.css';
 
 // Types for Dashboard API
 interface DashboardSummary {
@@ -300,6 +301,13 @@ const Dashboard: React.FC = () => {
         </div>
         
         <div className="header-controls">
+          <button
+            onClick={() => window.location.href = '/create-scan'}
+            className="new-scan-button"
+          >
+            ➕ New Scan
+          </button>
+          
           <select
             value={selectedTimeRange}
             onChange={(e) => handleTimeRangeChange(e.target.value)}

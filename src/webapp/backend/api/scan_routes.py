@@ -11,10 +11,10 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.responses import JSONResponse
 
-from src.webapp.backend.models.scan_models import (
+from ..models.scan_models import (
     ReportDetail, ScanRequest, ScanResponse, ScanListItem, ScanStatus, ScanInitiateResponse
 )
-from src.webapp.backend.services.scan_service import ScanService
+from ..services.scan_service import ScanService
 
 # Configure logging
 logger = logging.getLogger(__name__)

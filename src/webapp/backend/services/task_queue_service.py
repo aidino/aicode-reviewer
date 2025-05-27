@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, Callable
 from datetime import datetime, timedelta
 from enum import Enum
 
-from src.webapp.backend.models.scan_models import ScanRequest, ScanStatus, ScanType
+from ..models.scan_models import ScanRequest, ScanStatus, ScanType
 
 # Configure logging
 logger = logging.getLogger(__name__)

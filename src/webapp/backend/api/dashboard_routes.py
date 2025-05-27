@@ -9,14 +9,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 
 from ..models.dashboard_models import (
-    DashboardSummary, DashboardQuery, TimeRange, HealthCheckResponse
+    DashboardSummary, DashboardQuery, TimeRange, SystemHealth
 )
 from ..services.dashboard_service import DashboardService
 
 logger = logging.getLogger(__name__)
 
 # Create router
-router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 # Dependency injection
 def get_dashboard_service() -> DashboardService:
@@ -70,8 +70,8 @@ async def get_dashboard_summary(
         # Create query object
         query = DashboardQuery(
             time_range=time_range,
-            repository=repository,
-            scan_type=scan_type,
+            repository_filter=repository,
+            scan_type_filter=scan_type,
             include_trends=include_trends,
             include_xai=include_xai
         )
@@ -92,7 +92,7 @@ async def get_dashboard_summary(
         )
 
 
-@router.get("/health", response_model=HealthCheckResponse, status_code=status.HTTP_200_OK)
+@router.get("/health", response_model=SystemHealth, status_code=status.HTTP_200_OK)
 async def get_dashboard_health(
     dashboard_service: DashboardService = Depends(get_dashboard_service)
 ):
@@ -109,7 +109,7 @@ async def get_dashboard_health(
         dashboard_service: Injected dashboard service
         
     Returns:
-        HealthCheckResponse: Health status and metrics
+        SystemHealth: Health status and metrics
         
     Raises:
         HTTPException: If health check fails
@@ -158,7 +158,7 @@ async def get_scan_metrics(
         
         query = DashboardQuery(
             time_range=time_range,
-            repository=repository,
+            repository_filter=repository,
             include_trends=False,
             include_xai=False
         )
@@ -209,7 +209,7 @@ async def get_findings_metrics(
         
         query = DashboardQuery(
             time_range=time_range,
-            repository=repository,
+            repository_filter=repository,
             include_trends=include_trends,
             include_xai=False
         )
@@ -262,7 +262,7 @@ async def get_xai_metrics(
         
         query = DashboardQuery(
             time_range=time_range,
-            repository=repository,
+            repository_filter=repository,
             include_trends=False,
             include_xai=True
         )

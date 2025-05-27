@@ -76,6 +76,7 @@ class SystemHealth(BaseModel):
     version: str = Field(..., description="Application version")
     uptime: str = Field(..., description="System uptime")
     metrics: Dict[str, Any] = Field(..., description="Key system metrics")
+    components: Dict[str, str] = Field(..., description="Component health status")
 
 
 class DashboardSummary(BaseModel):
@@ -105,4 +106,6 @@ class DashboardQuery(BaseModel):
     """Query parameters for dashboard data retrieval."""
     time_range: TimeRange = Field(default=TimeRange.LAST_30_DAYS, description="Time range for data")
     repository_filter: Optional[str] = Field(None, description="Filter by specific repository")
-    scan_type_filter: Optional[str] = Field(None, description="Filter by scan type") 
+    scan_type_filter: Optional[str] = Field(None, description="Filter by scan type")
+    include_trends: bool = Field(default=True, description="Include trend data")
+    include_xai: bool = Field(default=True, description="Include XAI metrics") 

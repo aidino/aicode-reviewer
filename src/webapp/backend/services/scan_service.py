@@ -11,12 +11,12 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from uuid import uuid4
 
-from src.webapp.backend.models.scan_models import (
+from ..models.scan_models import (
     ReportDetail, ScanInfo, ScanSummary, StaticAnalysisFinding, 
     LLMReview, DiagramData, ScanMetadata, ScanType, ScanStatus, SeverityLevel,
     ScanRequest, ScanInitiateResponse
 )
-from src.webapp.backend.services.task_queue_service import get_task_queue_service
+from .task_queue_service import get_task_queue_service
 
 # Configure logging
 logger = logging.getLogger(__name__)

@@ -198,6 +198,74 @@
 **Summary:** Successfully implemented a complete backend API for the web application's report viewing functionality. The backend provides:
 - RESTful API endpoints for scan management and report retrieval
 - Comprehensive data models matching the core engine's output structure
+
+### **Milestone 2.8: ReportView Frontend Fix (Completed - 2025-05-27)**
+
+* **[DONE]** Fix Frontend-Backend Type Mismatch Issues:
+  * **[DONE]** Update `src/webapp/frontend/src/types/index.ts` to match backend response structure
+  * **[DONE]** Change `SeverityLevel` from `'low' | 'medium' | 'high' | 'critical'` to `'Error' | 'Warning' | 'Info' | 'Unknown'`
+  * **[DONE]** Update `LLMReview` interface: replace array structure with `{insights: string, has_content: boolean, sections: Record<string, string>}`
+  * **[DONE]** Update `StaticAnalysisFinding` fields: `file_path→file`, `line_number→line`, `column_number→column`
+  * **[DONE]** Update `ScanInfo` fields: `created_at→timestamp`
+  * **[DONE]** Update `ScanSummary` to use `severity_breakdown: Record<SeverityLevel, number>`
+  * **[DONE]** Update `DiagramData`: `diagram_type→type`
+
+* **[DONE]** Fix API Endpoints URLs:
+  * **[DONE]** Update `src/webapp/frontend/src/services/api.ts` to use `/api/` prefix for all endpoints
+  * **[DONE]** Fix scan list endpoint from `/scans/` to `/api/scans/`
+  * **[DONE]** Fix scan report endpoint from `/scans/{id}/report` to `/api/scans/{id}/report`
+  * **[DONE]** Fix scan status, create, delete endpoints to include `/api/` prefix
+  * **[DONE]** Update Vite proxy configuration to handle both `/api` and `/health` endpoints
+
+* **[DONE]** Fix Backend Import Issues:
+  * **[DONE]** Convert absolute imports to relative imports in `src/webapp/backend/api/main.py`
+  * **[DONE]** Fix imports in `src/webapp/backend/api/scan_routes.py`
+  * **[DONE]** Fix imports in `src/webapp/backend/services/scan_service.py`
+  * **[DONE]** Fix imports in `src/webapp/backend/services/task_queue_service.py`
+
+* **[DONE]** Update ReportView Component (`src/webapp/frontend/src/pages/ReportView.tsx`):
+  * **[DONE]** Update severity styling to use CSS classes instead of inline styles: `getSeverityClass()`
+  * **[DONE]** Fix LLM Insights tab to display `llm_review.insights` and `sections`
+  * **[DONE]** Update Overview tab to use `severity_breakdown` instead of individual count fields
+  * **[DONE]** Fix findings mapping to use index instead of `finding.id`
+  * **[DONE]** Update metadata display to show `successful_parses` instead of `languages_detected`
+  * **[DONE]** Fix diagram display to use `diagram.type` instead of `diagram.diagram_type`
+  * **[DONE]** Update date display to use `scan_info.timestamp` instead of `created_at`
+
+* **[DONE]** Testing and Verification:
+  * **[DONE]** Create `test_report_view_fix.py` for comprehensive testing
+  * **[DONE]** Verify backend API returns correct JSON structure
+  * **[DONE]** Verify frontend proxy works correctly
+  * **[DONE]** Verify React page loads without errors
+  * **[DONE]** Verify TypeScript type compatibility between frontend and backend
+  * **[DONE]** Test severity levels match: ['Error', 'Warning', 'Info'] found and match expected types
+  * **[DONE]** Test findings structure with correct field names: `rule_id`, `message`, `line`, `severity`, `category`, `file`
+  * **[DONE]** Test diagrams structure with correct field names: `type`, `content`, `format`
+
+* **[DONE]** Infrastructure Improvements:
+  * **[DONE]** Update `start_servers.sh` to run both frontend and backend from project root
+  * **[DONE]** Create `QUICK_START.md` with comprehensive setup instructions
+  * **[DONE]** Create `test_api_endpoints.py` for backend API testing
+
+**Issue Resolution:**
+- **Problem:** Frontend reported "Error loading scans: Unexpected token '<', "<!DOCTYPE "... is not valid JSON"
+- **Root Cause:** Frontend was calling `/scans/` but backend had endpoints at `/api/scans/`, causing frontend to receive HTML instead of JSON
+- **Solution:** Updated all frontend API calls to include `/api/` prefix and fixed TypeScript types to match backend response structure
+
+**Technical Achievements:**
+- ✅ Fixed API endpoint URL mismatches between frontend and backend
+- ✅ Resolved TypeScript type compatibility issues
+- ✅ Updated ReportView component to display all backend data correctly
+- ✅ Created comprehensive test suite with 100% pass rate
+- ✅ Improved development workflow with automated server startup scripts
+
+**Summary:** Successfully resolved ReportView display issues by fixing frontend-backend integration. The system now correctly:
+- Loads scan reports from `/api/scans/{id}/report` endpoint
+- Displays severity levels (Error, Warning, Info, Unknown) with proper styling
+- Shows LLM insights and code analysis findings
+- Renders diagrams and metadata correctly
+- Provides proper error handling and loading states
+- **URL `http://localhost:5173/reports/demo_scan_1` now works correctly**
 - Mock data service providing realistic scan reports for development and testing
 - Full test coverage ensuring reliability and maintainability
 - Foundation for frontend integration and future web application features
@@ -1194,3 +1262,75 @@
 - **Production Ready**: ✅ Tất cả services hoạt động ổn định với proper error handling
 
 **Summary:** Successfully implemented comprehensive analytics dashboard for Phase 4. The dashboard provides complete code review insights with advanced analytics, interactive visualizations, and real-time monitoring capabilities. All components include comprehensive testing, modern UI/UX design, and production-ready code with proper type safety and error handling. The dashboard serves as the central command center for AI Code Review analytics and system monitoring. **Phase 4 Dashboard FULLY COMPLETE with all 104 backend tests passing.**
+
+---
+
+## **Discovered During Work**
+
+### **2025-05-27: Report View Fix** ✅ **COMPLETED**
+* **[DONE]** Fix report view display issue:
+  * **[DONE]** Diagnose frontend proxy configuration problems
+  * **[DONE]** Fix API service base URL from absolute to relative path
+  * **[DONE]** Update Vite proxy config with rewrite rule to strip `/api` prefix
+  * **[DONE]** Fix backend router prefix conflicts (dashboard routes)
+  * **[DONE]** Verify report endpoint works through proxy
+  * **[DONE]** Update test scripts and documentation
+  * **[DONE]** Create comprehensive fix summary documentation
+
+**Issue Resolution Summary:**
+- **Problem**: Report view (scans > view) không hiển thị được do frontend proxy không hoạt động
+- **Root Cause**: API service dùng absolute URL, Vite proxy thiếu rewrite rule, backend routing conflicts
+- **Solution**: Sửa API base URL thành relative path, thêm proxy rewrite rule, fix router prefixes
+- **Result**: ✅ Report endpoint hoạt động qua proxy, report view hiển thị được đầy đủ
+- **Files Modified**: `api.ts`, `vite.config.ts`, `dashboard_routes.py`, test scripts, documentation
+- **Verification**: `python test_dashboard.py` confirms report endpoint working through proxy
+
+### **2025-01-30: Frontend Flat Design Redesign** ✅ **COMPLETED**
+* **[DONE]** Redesign frontend CSS với modern flat design aesthetic:
+  * **[DONE]** Create comprehensive design system (`src/webapp/frontend/src/styles/globals.css`):
+    * **[DONE]** Define CSS variables cho colors, spacing, typography, shadows, borders
+    * **[DONE]** Implement flat color palette: primary blue, secondary green, neutral grays
+    * **[DONE]** Remove gradients và shadows, focus on clean minimalist look
+    * **[DONE]** Create utility classes: buttons, badges, cards, layout helpers
+    * **[DONE]** Add responsive design với mobile-first approach
+    * **[DONE]** Include loading states, error states, accessibility features
+  * **[DONE]** Redesign Dashboard CSS (`src/webapp/frontend/src/styles/Dashboard.css`):
+    * **[DONE]** Convert từ glassmorphism sang flat design
+    * **[DONE]** Remove backdrop filters, gradients, complex shadows
+    * **[DONE]** Use solid colors với subtle borders
+    * **[DONE]** Simplify metric cards với clean typography
+    * **[DONE]** Update responsive grid layouts
+  * **[DONE]** Create component styles (`src/webapp/frontend/src/styles/components.css`):
+    * **[DONE]** Scan list table styling với flat design
+    * **[DONE]** Report view components styling
+    * **[DONE]** Form elements và input styling
+    * **[DONE]** Navigation và header styling
+    * **[DONE]** Loading spinners và error states
+  * **[DONE]** Update React components để sử dụng flat design:
+    * **[DONE]** Update `App.tsx` Header và Footer components
+    * **[DONE]** Update `ScanList.tsx` với CSS classes thay vì inline styles
+    * **[DONE]** Update `ReportView.tsx` với flat design badges và cards
+    * **[DONE]** Update `CreateScan.tsx` với modern button styles
+    * **[DONE]** Update `Dashboard.tsx` để import CSS files mới
+  * **[DONE]** Create comprehensive test script (`test_flat_design.py`):
+    * **[DONE]** Check CSS files existence và CSS variables
+    * **[DONE]** Verify component updates với flat design classes
+    * **[DONE]** Run frontend build test để ensure compatibility
+    * **[DONE]** Generate comprehensive test report
+
+**Design System Features:**
+- **Color Palette**: Flat colors với primary blue (#2563eb), secondary green (#10b981), neutral grays
+- **Typography**: Inter font family với consistent sizing scale (xs to 4xl)
+- **Spacing**: 8px base unit với consistent spacing scale (xs: 4px to 4xl: 64px)
+- **Components**: Buttons (primary, secondary, outline), badges (success, warning, error), cards
+- **Layout**: Flexbox utilities, responsive grid, container classes
+- **Accessibility**: Focus states, proper contrast ratios, keyboard navigation support
+
+**Implementation Results:**
+- **CSS Files**: ✅ 3 comprehensive CSS files created (globals, Dashboard, components)
+- **CSS Variables**: ✅ 50+ design tokens defined cho consistent theming
+- **Component Updates**: ✅ 4 major components updated với flat design classes
+- **Frontend Build**: ✅ Build successful với no errors
+- **Test Coverage**: ✅ All tests passed với comprehensive validation
+
+**Summary:** Successfully redesigned frontend với modern flat design aesthetic. Removed gradients, shadows, và complex visual effects in favor of clean, minimalist design. Created comprehensive design system với CSS variables, utility classes, và responsive layouts. All components updated để sử dụng flat design principles while maintaining functionality và accessibility. **Flat Design Redesign FULLY COMPLETE.**

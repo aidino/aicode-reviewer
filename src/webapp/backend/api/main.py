@@ -10,9 +10,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.webapp.backend.api.scan_routes import router as scan_router
-from src.webapp.backend.api.dashboard_routes import router as dashboard_router
-from src.webapp.backend.api.feedback_routes import router as feedback_router
+from .scan_routes import router as scan_router
+from .dashboard_routes import router as dashboard_router
+from .feedback_routes import router as feedback_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,8 +37,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(scan_router)
-app.include_router(dashboard_router)
+app.include_router(scan_router, prefix="/api")
+app.include_router(dashboard_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
 
 
@@ -56,7 +56,7 @@ async def root() -> JSONResponse:
         "status": "running",
         "docs_url": "/docs",
         "endpoints": {
-            "scans": "/scans",
+            "scans": "/api/scans",
             "dashboard": "/api/dashboard",
             "feedback": "/api/feedback", 
             "health": "/health",

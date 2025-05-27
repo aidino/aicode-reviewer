@@ -32,47 +32,31 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
   const { data: scans, loading, error, refetch } = useScans(pageSize, page * pageSize);
   const { deleteScan, loading: deleting } = useDeleteScan();
 
-  // Status badge styles
-  const getStatusBadgeStyle = (status: ScanStatus): React.CSSProperties => {
-    const baseStyle: React.CSSProperties = {
-      padding: '4px 8px',
-      borderRadius: '12px',
-      fontSize: '0.8em',
-      fontWeight: 'bold',
-      textTransform: 'uppercase',
-    };
-
+  // Status badge styles using CSS classes
+  const getStatusBadgeClass = (status: ScanStatus): string => {
     switch (status) {
       case 'completed':
-        return { ...baseStyle, backgroundColor: '#e8f5e8', color: '#2e7d32' };
+        return 'badge badge-success';
       case 'running':
-        return { ...baseStyle, backgroundColor: '#fff3cd', color: '#856404' };
+        return 'badge badge-warning';
       case 'pending':
-        return { ...baseStyle, backgroundColor: '#cce7ff', color: '#0066cc' };
+        return 'badge badge-info';
       case 'failed':
-        return { ...baseStyle, backgroundColor: '#ffebee', color: '#c62828' };
+        return 'badge badge-error';
       default:
-        return { ...baseStyle, backgroundColor: '#f5f5f5', color: '#666' };
+        return 'badge';
     }
   };
 
-  // Type badge styles
-  const getTypeBadgeStyle = (type: ScanType): React.CSSProperties => {
-    const baseStyle: React.CSSProperties = {
-      padding: '2px 6px',
-      borderRadius: '8px',
-      fontSize: '0.75em',
-      fontWeight: 'bold',
-      textTransform: 'uppercase',
-    };
-
+  // Type badge styles using CSS classes
+  const getTypeBadgeClass = (type: ScanType): string => {
     switch (type) {
       case 'pr':
-        return { ...baseStyle, backgroundColor: '#e3f2fd', color: '#1565c0' };
+        return 'badge badge-info';
       case 'project':
-        return { ...baseStyle, backgroundColor: '#f3e5f5', color: '#7b1fa2' };
+        return 'badge badge-success';
       default:
-        return { ...baseStyle, backgroundColor: '#f5f5f5', color: '#666' };
+        return 'badge';
     }
   };
 
@@ -114,10 +98,13 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
   // Loading state
   if (loading && !scans) {
     return (
-      <div className={`scan-list ${className}`} style={{ padding: '20px' }}>
-        <h1>Code Review Scans</h1>
-        <div style={{ textAlign: 'center', padding: '40px' }}>
-          <div>Loading scans...</div>
+      <div className={`scan-list-container ${className}`}>
+        <div className="scan-list-header">
+          <h1 className="scan-list-title">Code Review Scans</h1>
+        </div>
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <div className="loading-text">Loading scans...</div>
         </div>
       </div>
     );
@@ -126,28 +113,14 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
   // Error state
   if (error && !scans) {
     return (
-      <div className={`scan-list ${className}`} style={{ padding: '20px' }}>
-        <h1>Code Review Scans</h1>
-        <div style={{
-          padding: '20px',
-          backgroundColor: '#ffebee',
-          border: '1px solid #f44336',
-          borderRadius: '4px',
-          color: '#c62828',
-        }}>
-          <strong>Error loading scans:</strong> {error.detail}
-          <button
-            onClick={refetch}
-            style={{
-              marginLeft: '12px',
-              padding: '6px 12px',
-              backgroundColor: '#f44336',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-            }}
-          >
+      <div className={`scan-list-container ${className}`}>
+        <div className="scan-list-header">
+          <h1 className="scan-list-title">Code Review Scans</h1>
+        </div>
+        <div className="error-container">
+          <div className="error-title">Error loading scans:</div>
+          <div className="error-message">{error.detail}</div>
+          <button onClick={refetch} className="btn btn-primary">
             Retry
           </button>
         </div>
@@ -156,41 +129,24 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
   }
 
   return (
-    <div className={`scan-list ${className}`} style={{ padding: '20px' }}>
+    <div className={`scan-list-container ${className}`}>
       {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '24px' 
-      }}>
-        <h1>Code Review Scans</h1>
-        <button
-          onClick={() => navigate('/create-scan')}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#1976d2',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px',
-          }}
-        >
-          New Scan
-        </button>
+      <div className="scan-list-header">
+        <h1 className="scan-list-title">Code Review Scans</h1>
+        <div className="scan-list-actions">
+          <button
+            onClick={() => navigate('/create-scan')}
+            className="btn btn-primary"
+          >
+            ➕ New Scan
+          </button>
+        </div>
       </div>
 
       {/* Statistics */}
       {scans && scans.length > 0 && (
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{
-            backgroundColor: '#f5f5f5',
-            padding: '12px 16px',
-            borderRadius: '4px',
-            fontSize: '14px',
-            color: '#666',
-          }}>
+        <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
+          <div className="text-secondary" style={{ fontSize: 'var(--font-size-sm)' }}>
             Showing {scans.length} scan{scans.length !== 1 ? 's' : ''} (Page {page + 1})
           </div>
         </div>
@@ -199,120 +155,88 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
       {/* Scans Table */}
       {scans && scans.length > 0 ? (
         <div style={{ overflow: 'auto' }}>
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'collapse',
-            backgroundColor: 'white',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          }}>
+          <table className="scan-table">
             <thead>
-              <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Scan ID
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Type
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Repository
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Status
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Findings
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Created
-                </th>
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>
-                  Actions
-                </th>
+              <tr>
+                <th>Scan ID</th>
+                <th>Type</th>
+                <th>Repository</th>
+                <th>Status</th>
+                <th>Findings</th>
+                <th>Created</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {scans.map((scan) => (
-                <tr key={scan.scan_id} data-testid="scan-list-item" style={{ borderBottom: '1px solid #dee2e6' }}>
-                  <td style={{ padding: '12px' }}>
+                <tr key={scan.scan_id} data-testid="scan-list-item">
+                  <td>
                     <button
                       onClick={() => handleViewReport(scan.scan_id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#1976d2',
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                        padding: 0,
-                        fontSize: 'inherit',
-                      }}
+                      className="btn btn-ghost"
+                      style={{ padding: 0, textDecoration: 'underline' }}
                     >
                       {scan.scan_id}
                     </button>
                   </td>
-                  <td style={{ padding: '12px' }}>
-                    <span style={getTypeBadgeStyle(scan.scan_type)}>
+                  <td>
+                    <span className={getTypeBadgeClass(scan.scan_type)}>
                       {scan.scan_type}
                     </span>
                     {scan.pr_id && (
-                      <div style={{ fontSize: '0.8em', color: '#666', marginTop: '2px' }}>
+                      <div className="text-muted" style={{ 
+                        fontSize: 'var(--font-size-xs)', 
+                        marginTop: 'var(--spacing-xs)' 
+                      }}>
                         PR #{scan.pr_id}
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '12px' }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: '0.9em' }}>
+                  <td>
+                    <div style={{ 
+                      fontFamily: 'monospace', 
+                      fontSize: 'var(--font-size-sm)' 
+                    }}>
                       {scan.repository}
                     </div>
                   </td>
-                  <td style={{ padding: '12px' }}>
-                    <span style={getStatusBadgeStyle(scan.status)}>
+                  <td>
+                    <span className={getStatusBadgeClass(scan.status)}>
                       {scan.status}
                     </span>
                   </td>
-                  <td style={{ padding: '12px' }}>
+                  <td>
                     {scan.total_findings > 0 ? (
-                      <span style={{
-                        fontWeight: 'bold',
-                        color: scan.total_findings > 10 ? '#f44336' : 
-                               scan.total_findings > 5 ? '#ff9800' : '#4caf50'
+                      <span className="font-semibold" style={{
+                        color: scan.total_findings > 10 ? 'var(--color-error)' : 
+                               scan.total_findings > 5 ? 'var(--color-warning)' : 'var(--color-success)'
                       }}>
                         {scan.total_findings}
                       </span>
                     ) : (
-                      <span style={{ color: '#666' }}>0</span>
+                      <span className="text-muted">0</span>
                     )}
                   </td>
-                  <td style={{ padding: '12px', fontSize: '0.9em', color: '#666' }}>
+                  <td className="text-secondary" style={{ fontSize: 'var(--font-size-sm)' }}>
                     {formatDate(scan.created_at)}
                   </td>
-                  <td style={{ padding: '12px' }}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                  <td>
+                    <div className="flex gap-sm">
                       <button
                         onClick={() => handleViewReport(scan.scan_id)}
-                        style={{
-                          padding: '4px 8px',
-                          backgroundColor: '#1976d2',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '0.8em',
-                        }}
+                        className="btn btn-primary"
+                        style={{ fontSize: 'var(--font-size-xs)' }}
                       >
                         View
                       </button>
                       <button
                         onClick={() => handleDeleteScan(scan.scan_id)}
                         disabled={deleting}
-                        style={{
-                          padding: '4px 8px',
-                          backgroundColor: '#f44336',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: deleting ? 'not-allowed' : 'pointer',
-                          fontSize: '0.8em',
-                          opacity: deleting ? 0.6 : 1,
+                        className="btn btn-outline"
+                        style={{ 
+                          fontSize: 'var(--font-size-xs)',
+                          borderColor: 'var(--color-error)',
+                          color: 'var(--color-error)'
                         }}
                       >
                         Delete
@@ -325,74 +249,40 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
           </table>
         </div>
       ) : (
-        <div style={{
-          textAlign: 'center',
-          padding: '40px',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '4px',
-        }}>
-          <h3>No scans found</h3>
-          <p>Create your first scan to get started with code analysis.</p>
+        <div className="card text-center" style={{ padding: 'var(--spacing-2xl)' }}>
+          <h3 className="text-primary">No scans found</h3>
+          <p className="text-secondary">Create your first scan to get started with code analysis.</p>
           <button
             onClick={() => navigate('/create-scan')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#1976d2',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              marginTop: '12px',
-            }}
+            className="btn btn-primary"
+            style={{ marginTop: 'var(--spacing-md)' }}
           >
-            Create Scan
+            ➕ Create Scan
           </button>
         </div>
       )}
 
       {/* Pagination */}
       {scans && scans.length > 0 && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: '24px',
-          padding: '12px',
-          backgroundColor: '#f8f9fa',
-          borderRadius: '4px',
-        }}>
+        <div className="pagination">
           <button
             onClick={handlePreviousPage}
             disabled={page === 0 || loading}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: page === 0 ? '#e0e0e0' : '#1976d2',
-              color: page === 0 ? '#666' : 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: page === 0 ? 'not-allowed' : 'pointer',
-            }}
+            className={`pagination-button ${page === 0 ? '' : 'active'}`}
           >
-            Previous
+            ← Previous
           </button>
           
-          <span style={{ fontSize: '14px', color: '#666' }}>
+          <span className="pagination-info">
             Page {page + 1}
           </span>
           
           <button
             onClick={handleNextPage}
             disabled={!scans || scans.length < pageSize || loading}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: (!scans || scans.length < pageSize) ? '#e0e0e0' : '#1976d2',
-              color: (!scans || scans.length < pageSize) ? '#666' : 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: (!scans || scans.length < pageSize) ? 'not-allowed' : 'pointer',
-            }}
+            className={`pagination-button ${(!scans || scans.length < pageSize) ? '' : 'active'}`}
           >
-            Next
+            Next →
           </button>
         </div>
       )}
@@ -411,13 +301,9 @@ const ScanList: React.FC<ScanListProps> = ({ className = '' }) => {
           justifyContent: 'center',
           zIndex: 1000,
         }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '4px',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
-          }}>
-            Loading...
+          <div className="card" style={{ padding: 'var(--spacing-lg)' }}>
+            <div className="loading-spinner"></div>
+            <div className="loading-text">Loading...</div>
           </div>
         </div>
       )}

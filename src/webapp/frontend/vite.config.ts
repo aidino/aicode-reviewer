@@ -23,6 +23,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      // Proxy health endpoint
+      '/health': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   

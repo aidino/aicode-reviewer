@@ -5,73 +5,64 @@
 
 export type ScanType = 'pr' | 'project';
 export type ScanStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type SeverityLevel = 'low' | 'medium' | 'high' | 'critical';
+export type SeverityLevel = 'Error' | 'Warning' | 'Info' | 'Unknown';
 
 export interface ScanInfo {
   scan_id: string;
-  scan_type: ScanType;
   repository: string;
-  branch?: string;
   pr_id?: number;
-  target_branch?: string;
-  source_branch?: string;
-  commit_hash?: string;
-  created_at: string;
-  completed_at?: string;
+  branch?: string;
+  scan_type: ScanType;
+  timestamp: string;
+  report_version: string;
 }
 
 export interface ScanSummary {
   total_findings: number;
-  critical_count: number;
-  high_count: number;
-  medium_count: number;
-  low_count: number;
+  severity_breakdown: Record<SeverityLevel, number>;
+  category_breakdown: Record<string, number>;
   scan_status: ScanStatus;
   has_llm_analysis: boolean;
-  execution_time_seconds?: number;
+  error_message?: string;
 }
 
 export interface StaticAnalysisFinding {
-  id: string;
   rule_id: string;
+  message: string;
+  line: number;
+  column?: number;
   severity: SeverityLevel;
   category: string;
-  message: string;
-  file_path: string;
-  line_number: number;
-  column_number?: number;
+  file: string;
   suggestion?: string;
-  code_snippet?: string;
 }
 
 export interface LLMReview {
-  section: string;
-  content: string;
-  confidence_score?: number;
-  model_used?: string;
+  insights: string;
+  has_content: boolean;
+  sections: Record<string, string>;
 }
 
 export interface DiagramData {
-  diagram_type: string;
-  diagram_content: string;
+  type: string;
+  content: string;
   format: string;
-  metadata?: Record<string, any>;
+  title?: string;
+  description?: string;
 }
 
 export interface ScanMetadata {
+  agent_versions: Record<string, string>;
+  generation_time: string;
   total_files_analyzed: number;
-  languages_detected: string[];
-  analysis_duration_seconds: number;
-  llm_provider?: string;
-  llm_model?: string;
-  timestamp: string;
+  successful_parses: number;
 }
 
 export interface ReportDetail {
   scan_info: ScanInfo;
   summary: ScanSummary;
   static_analysis_findings: StaticAnalysisFinding[];
-  llm_analysis: LLMReview[];
+  llm_review: LLMReview;
   diagrams: DiagramData[];
   metadata: ScanMetadata;
 }

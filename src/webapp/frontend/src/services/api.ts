@@ -15,7 +15,7 @@ import {
 } from '../types';
 
 // API configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 class ApiService {
   private baseUrl: string;
@@ -96,7 +96,7 @@ class ApiService {
       offset: offset.toString(),
     });
     
-    return this.fetchWithErrorHandling<ScanListItem[]>(`/scans/?${params}`);
+    return this.fetchWithErrorHandling<ScanListItem[]>(`/api/scans/?${params}`);
   }
 
   /**
@@ -118,7 +118,7 @@ class ApiService {
       };
     }
 
-    return this.fetchWithErrorHandling<ReportDetail>(`/scans/${encodeURIComponent(scanId)}/report`);
+    return this.fetchWithErrorHandling<ReportDetail>(`/api/scans/${encodeURIComponent(scanId)}/report`);
   }
 
   /**
@@ -144,7 +144,7 @@ class ApiService {
       };
     }
 
-    return this.fetchWithErrorHandling(`/scans/${encodeURIComponent(scanId)}/status`);
+    return this.fetchWithErrorHandling(`/api/scans/${encodeURIComponent(scanId)}/status`);
   }
 
   /**
@@ -157,7 +157,7 @@ class ApiService {
    *   Promise<ApiResponse<ScanResponse>>: Created scan response
    */
   async createScan(scanRequest: ScanRequest): Promise<ApiResponse<ScanResponse>> {
-    return this.fetchWithErrorHandling<ScanResponse>('/scans/', {
+    return this.fetchWithErrorHandling<ScanResponse>('/api/scans/', {
       method: 'POST',
       body: JSON.stringify(scanRequest),
     });
@@ -182,7 +182,7 @@ class ApiService {
       };
     }
 
-    return this.fetchWithErrorHandling(`/scans/${encodeURIComponent(scanId)}`, {
+    return this.fetchWithErrorHandling(`/api/scans/${encodeURIComponent(scanId)}`, {
       method: 'DELETE',
     });
   }

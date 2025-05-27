@@ -12,46 +12,7 @@ import ReportView from './pages/ReportView';
 import CreateScan from './pages/CreateScan';
 import TestPage from './pages/TestPage';
 import Dashboard from './pages/Dashboard';
-
-// Global styles
-const globalStyles = `
-  * {
-    box-sizing: border-box;
-  }
-  
-  body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    background-color: #f5f5f5;
-    color: #333;
-  }
-  
-  code {
-    font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    margin: 0;
-    font-weight: 600;
-  }
-  
-  button {
-    font-family: inherit;
-  }
-  
-  a {
-    color: inherit;
-    text-decoration: none;
-  }
-  
-  table {
-    border-collapse: collapse;
-  }
-`;
+import './styles/globals.css';
 
 interface AppProps {
   className?: string;
@@ -65,11 +26,10 @@ interface AppProps {
  */
 const Header: React.FC = () => {
   return (
-    <header style={{
-      backgroundColor: '#1976d2',
-      color: 'white',
-      padding: '16px 20px',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    <header className="bg-primary" style={{
+      color: 'var(--color-text-inverse)',
+      padding: 'var(--spacing-md) var(--spacing-lg)',
+      borderBottom: '1px solid var(--color-border)',
     }}>
       <div style={{
         display: 'flex',
@@ -79,69 +39,45 @@ const Header: React.FC = () => {
         margin: '0 auto',
       }}>
         <div>
-          <h1 style={{ fontSize: '1.5em', margin: 0 }}>
+          <h1 style={{ 
+            fontSize: 'var(--font-size-xl)', 
+            margin: 0,
+            fontWeight: 'var(--font-weight-bold)'
+          }}>
             AI Code Reviewer
           </h1>
-          <div style={{ fontSize: '0.9em', opacity: 0.9, marginTop: '4px' }}>
+          <div style={{ 
+            fontSize: 'var(--font-size-sm)', 
+            opacity: 0.9, 
+            marginTop: 'var(--spacing-xs)' 
+          }}>
             Multi-Agent Code Analysis Platform
           </div>
         </div>
-        <nav style={{ display: 'flex', gap: '12px' }}>
+        <nav className="flex gap-sm">
           <a
             href="/dashboard"
+            className="btn btn-ghost"
             style={{
-              color: 'white',
-              textDecoration: 'none',
-              padding: '8px 16px',
-              borderRadius: '4px',
+              color: 'var(--color-text-inverse)',
               backgroundColor: 'rgba(255,255,255,0.1)',
-              transition: 'background-color 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
             }}
           >
             📊 Dashboard
           </a>
           <a
             href="/scans"
+            className="btn btn-ghost"
             style={{
-              color: 'white',
-              textDecoration: 'none',
-              padding: '8px 16px',
-              borderRadius: '4px',
+              color: 'var(--color-text-inverse)',
               backgroundColor: 'rgba(255,255,255,0.1)',
-              transition: 'background-color 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
             }}
           >
             View Scans
           </a>
           <a
             href="/create-scan"
-            style={{
-              color: 'white',
-              textDecoration: 'none',
-              padding: '8px 16px',
-              borderRadius: '4px',
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              transition: 'background-color 0.2s',
-              fontWeight: '500',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.25)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)';
-            }}
+            className="btn btn-secondary"
           >
             New Scan
           </a>
@@ -159,18 +95,20 @@ const Header: React.FC = () => {
  */
 const Footer: React.FC = () => {
   return (
-    <footer style={{
-      backgroundColor: '#f8f9fa',
-      borderTop: '1px solid #e9ecef',
-      padding: '16px 20px',
+    <footer className="bg-surface border" style={{
+      borderTop: '1px solid var(--color-border)',
+      padding: 'var(--spacing-md) var(--spacing-lg)',
       marginTop: 'auto',
       textAlign: 'center',
-      color: '#666',
-      fontSize: '0.9em',
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        <div>AI Code Reviewer - Multi-Agent Code Analysis Platform</div>
-        <div style={{ marginTop: '4px', fontSize: '0.8em' }}>
+        <div className="text-secondary" style={{ fontSize: 'var(--font-size-sm)' }}>
+          AI Code Reviewer - Multi-Agent Code Analysis Platform
+        </div>
+        <div className="text-muted" style={{ 
+          marginTop: 'var(--spacing-xs)', 
+          fontSize: 'var(--font-size-xs)' 
+        }}>
           Powered by LangGraph, FastAPI, and React
         </div>
       </div>
@@ -189,10 +127,8 @@ const Footer: React.FC = () => {
  */
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div style={{
+    <div className="flex flex-col" style={{
       minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
     }}>
       <Header />
       <main style={{
@@ -200,7 +136,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         maxWidth: '1200px',
         margin: '0 auto',
         width: '100%',
-        padding: '0 20px',
+        padding: '0 var(--spacing-lg)',
       }}>
         {children}
       </main>
@@ -228,26 +164,24 @@ const HomePage: React.FC = () => {
 const NotFoundPage: React.FC = () => {
   return (
     <Layout>
-      <div style={{
-        textAlign: 'center',
-        padding: '80px 20px',
+      <div className="text-center" style={{
+        padding: 'var(--spacing-2xl) var(--spacing-lg)',
       }}>
-        <h1 style={{ fontSize: '3em', marginBottom: '16px', color: '#666' }}>404</h1>
-        <h2 style={{ marginBottom: '16px' }}>Page Not Found</h2>
-        <p style={{ color: '#666', marginBottom: '24px' }}>
+        <h1 className="text-muted" style={{ 
+          fontSize: 'var(--font-size-4xl)', 
+          marginBottom: 'var(--spacing-md)' 
+        }}>
+          404
+        </h1>
+        <h2 className="text-primary" style={{ marginBottom: 'var(--spacing-md)' }}>
+          Page Not Found
+        </h2>
+        <p className="text-secondary" style={{ marginBottom: 'var(--spacing-xl)' }}>
           The page you're looking for doesn't exist.
         </p>
         <a
           href="/scans"
-          style={{
-            display: 'inline-block',
-            padding: '12px 24px',
-            backgroundColor: '#1976d2',
-            color: 'white',
-            borderRadius: '4px',
-            textDecoration: 'none',
-            fontWeight: 'bold',
-          }}
+          className="btn btn-primary"
         >
           Go to Scans
         </a>
@@ -270,9 +204,6 @@ const App: React.FC<AppProps> = ({ className = '' }) => {
   
   return (
     <div className={`app ${className}`}>
-      {/* Inject global styles */}
-      <style>{globalStyles}</style>
-      
       <Router>
         <Routes>
           {/* Home route - redirects to dashboard */}
