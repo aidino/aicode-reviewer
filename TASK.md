@@ -119,6 +119,54 @@
 - [ ] (Optional) Build static rule management UI
 - [ ] (Optional) Add user permission, LLM API key management
 
+### 2.7. Authentication System (New - 2025-01-28)
+- [ ] **Research & Planning for Authentication (2025-01-28)**
+  - [x] Research FastAPI JWT best practices and PostgreSQL integration
+  - [x] Design database schema for user management
+  - [x] Plan authentication flow and security considerations
+  - [x] Design API endpoints for registration, login, and protected routes
+- [ ] **Database Schema Implementation**
+  - [ ] Create User model với SQLAlchemy (id, username, email, password_hash, created_at, updated_at, is_active, role)
+  - [ ] Create UserProfile model (user_id, full_name, avatar_url, timezone, preferences)
+  - [ ] Create UserSession model for token blacklisting và session management
+  - [ ] Setup database migrations với Alembic
+  - [ ] Add database indexes for performance
+- [ ] **Authentication Backend Implementation**
+  - [ ] Install dependencies: PyJWT, passlib[bcrypt], python-multipart, alembic
+  - [ ] Create auth utilities: password hashing, JWT token creation/verification
+  - [ ] Create auth service: user registration, login, password validation
+  - [ ] Create auth middleware: JWT bearer authentication dependency
+  - [ ] Implement protected route decorators
+- [ ] **API Endpoints Development**
+  - [ ] POST /auth/register - user registration
+  - [ ] POST /auth/login - user login
+  - [ ] POST /auth/logout - user logout (token blacklisting)
+  - [ ] GET /auth/me - get current user profile
+  - [ ] PUT /auth/me - update user profile
+  - [ ] POST /auth/refresh - refresh access token
+  - [ ] POST /auth/change-password - change password
+- [ ] **Security Enhancements**
+  - [ ] Implement rate limiting for auth endpoints
+  - [ ] Add password strength validation
+  - [ ] Implement token blacklisting mechanism
+  - [ ] Add email verification flow (optional)
+  - [ ] Add password reset flow (optional)
+  - [ ] Security headers và CORS configuration
+- [ ] **Frontend Integration**
+  - [ ] Create authentication context và hooks
+  - [ ] Build login/register components
+  - [ ] Implement protected routes
+  - [ ] Add user profile management UI
+  - [ ] Token refresh handling
+  - [ ] Logout functionality
+- [ ] **Testing & Documentation**
+  - [ ] Unit tests for auth services và utilities
+  - [ ] API endpoint testing với pytest
+  - [ ] Frontend component testing
+  - [ ] Security testing (token validation, rate limiting)
+  - [ ] API documentation update
+  - [ ] User guide for authentication features
+
 ## 3. Discovered During Work
 - [ ] Optimize performance for large codebases, reduce LLM cost
 - [ ] Add warnings when scan exceeds resource thresholds
