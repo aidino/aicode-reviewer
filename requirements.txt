@@ -46,6 +46,7 @@ llama-index-embeddings-huggingface
 pytest
 pytest-cov
 pytest-asyncio
+pytest-benchmark
 
 # HTTP client for testing FastAPI
 httpx 

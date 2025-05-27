@@ -3,13 +3,20 @@ ASTParsingAgent for AI Code Review System.
 
 This module implements the ASTParsingAgent responsible for parsing source code
 into Abstract Syntax Trees (ASTs) using Tree-sitter for structural analysis.
+Includes performance optimizations: parallel parsing and AST caching.
 """
 
 import os
 import tempfile
 import logging
-from typing import Dict, Optional, Any, List
+import hashlib
+import json
+import time
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, Optional, Any, List, Tuple, Union
 from pathlib import Path
+from dataclasses import dataclass, asdict
 
 try:
     import tree_sitter
@@ -24,22 +31,70 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class CachedAST:
+    """
+    Cached AST data structure.
+    
+    Attributes:
+        file_path (str): Path to the source file
+        file_hash (str): SHA-256 hash of file content
+        language (str): Programming language
+        ast_data (Dict[str, Any]): Serialized AST structural information
+        timestamp (float): Cache creation timestamp
+        parse_time (float): Time taken to parse the file (in seconds)
+    """
+    file_path: str
+    file_hash: str
+    language: str
+    ast_data: Dict[str, Any]
+    timestamp: float
+    parse_time: float
+
+
+@dataclass
+class ParseResult:
+    """
+    Result of parsing operation.
+    
+    Attributes:
+        file_path (str): Path to the parsed file
+        language (str): Programming language
+        ast_node (Optional[Node]): Parsed AST node (None if parsing failed)
+        structural_info (Dict[str, Any]): Extracted structural information
+        parse_time (float): Time taken to parse (in seconds)
+        from_cache (bool): Whether result was loaded from cache
+        error (Optional[str]): Error message if parsing failed
+    """
+    file_path: str
+    language: str
+    ast_node: Optional[Node]
+    structural_info: Dict[str, Any]
+    parse_time: float
+    from_cache: bool
+    error: Optional[str] = None
+
+
 class ASTParsingAgent:
     """
     Agent responsible for parsing source code into Abstract Syntax Trees.
     
     This agent handles:
     - Initializing Tree-sitter parsers for supported languages
-    - Parsing source code files into ASTs
+    - Parsing source code files into ASTs (with parallel processing support)
     - Extracting structural information from ASTs
     - Managing language-specific parsing configurations
+    - Caching ASTs for improved performance
     """
     
-    def __init__(self):
+    def __init__(self, cache_dir: Optional[str] = None, max_workers: int = 4, enable_cache: bool = True):
         """
         Initialize the ASTParsingAgent.
         
-        Sets up Tree-sitter parsers and loads language grammars.
+        Args:
+            cache_dir (Optional[str]): Directory for AST cache. Defaults to temp directory.
+            max_workers (int): Maximum number of worker threads for parallel parsing.
+            enable_cache (bool): Whether to enable AST caching.
         
         Raises:
             ImportError: If tree-sitter is not installed
@@ -53,12 +108,385 @@ class ASTParsingAgent:
         self.parser = None
         self.languages = {}
         self.supported_languages = ['python']  # Start with only Python support
+        self.max_workers = max_workers
+        self.enable_cache = enable_cache
+        
+        # Setup cache directory
+        if cache_dir is None:
+            cache_dir = os.path.join(tempfile.gettempdir(), "ast_parsing_cache")
+        self.cache_dir = Path(cache_dir)
+        if self.enable_cache:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # In-memory cache for recently accessed ASTs
+        self._memory_cache: Dict[str, CachedAST] = {}
+        self._cache_max_size = 100  # Maximum number of ASTs to keep in memory
         
         # Initialize parsers for supported languages
         self._initialize_parsers()
         
         logger.info(f"ASTParsingAgent initialized with languages: {self.supported_languages}")
+        logger.info(f"Parallel processing: {max_workers} workers, Cache: {'enabled' if enable_cache else 'disabled'}")
     
+    def _calculate_file_hash(self, file_path: str) -> Optional[str]:
+        """
+        Calculate SHA-256 hash of file content.
+        
+        Args:
+            file_path (str): Path to the file
+            
+        Returns:
+            Optional[str]: File hash or None if file cannot be read
+        """
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+                return hashlib.sha256(content).hexdigest()
+        except Exception as e:
+            logger.error(f"Error calculating hash for {file_path}: {str(e)}")
+            return None
+    
+    def _get_cache_key(self, file_path: str, language: str) -> str:
+        """
+        Generate cache key for a file.
+        
+        Args:
+            file_path (str): Path to the file
+            language (str): Programming language
+            
+        Returns:
+            str: Cache key
+        """
+        # Use relative path to make cache portable
+        rel_path = os.path.relpath(file_path)
+        cache_key = f"{language}_{hashlib.md5(rel_path.encode()).hexdigest()}"
+        return cache_key
+    
+    def _get_cache_file_path(self, cache_key: str) -> Path:
+        """
+        Get cache file path for a cache key.
+        
+        Args:
+            cache_key (str): Cache key
+            
+        Returns:
+            Path: Cache file path
+        """
+        return self.cache_dir / f"{cache_key}.json"
+    
+    def _load_from_cache(self, file_path: str, language: str) -> Optional[CachedAST]:
+        """
+        Load AST from cache if available and valid.
+        
+        Args:
+            file_path (str): Path to the source file
+            language (str): Programming language
+            
+        Returns:
+            Optional[CachedAST]: Cached AST if valid, None otherwise
+        """
+        if not self.enable_cache:
+            return None
+        
+        cache_key = self._get_cache_key(file_path, language)
+        
+        # Check memory cache first
+        if cache_key in self._memory_cache:
+            cached_ast = self._memory_cache[cache_key]
+            # Verify file hasn't changed
+            current_hash = self._calculate_file_hash(file_path)
+            if current_hash and current_hash == cached_ast.file_hash:
+                logger.debug(f"Cache hit (memory) for {file_path}")
+                return cached_ast
+            else:
+                # File changed, remove from memory cache
+                del self._memory_cache[cache_key]
+        
+        # Check disk cache
+        cache_file = self._get_cache_file_path(cache_key)
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                
+                cached_ast = CachedAST(**cache_data)
+                
+                # Verify file hasn't changed
+                current_hash = self._calculate_file_hash(file_path)
+                if current_hash and current_hash == cached_ast.file_hash:
+                    # Add to memory cache
+                    self._add_to_memory_cache(cache_key, cached_ast)
+                    logger.debug(f"Cache hit (disk) for {file_path}")
+                    return cached_ast
+                else:
+                    # File changed, remove cache file
+                    cache_file.unlink()
+                    logger.debug(f"Cache invalidated for {file_path} (file changed)")
+            
+            except Exception as e:
+                logger.warning(f"Error loading cache for {file_path}: {str(e)}")
+                # Remove corrupted cache file
+                try:
+                    cache_file.unlink()
+                except:
+                    pass
+        
+        return None
+    
+    def _save_to_cache(self, file_path: str, language: str, structural_info: Dict[str, Any], parse_time: float) -> None:
+        """
+        Save AST structural information to cache.
+        
+        Args:
+            file_path (str): Path to the source file
+            language (str): Programming language
+            structural_info (Dict[str, Any]): Extracted structural information
+            parse_time (float): Time taken to parse
+        """
+        if not self.enable_cache:
+            return
+        
+        try:
+            file_hash = self._calculate_file_hash(file_path)
+            if not file_hash:
+                return
+            
+            cached_ast = CachedAST(
+                file_path=file_path,
+                file_hash=file_hash,
+                language=language,
+                ast_data=structural_info,
+                timestamp=time.time(),
+                parse_time=parse_time
+            )
+            
+            cache_key = self._get_cache_key(file_path, language)
+            
+            # Save to disk cache
+            cache_file = self._get_cache_file_path(cache_key)
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(asdict(cached_ast), f, indent=2)
+            
+            # Add to memory cache
+            self._add_to_memory_cache(cache_key, cached_ast)
+            
+            logger.debug(f"Cached AST for {file_path}")
+        
+        except Exception as e:
+            logger.warning(f"Error saving cache for {file_path}: {str(e)}")
+    
+    def _add_to_memory_cache(self, cache_key: str, cached_ast: CachedAST) -> None:
+        """
+        Add AST to memory cache with size limit.
+        
+        Args:
+            cache_key (str): Cache key
+            cached_ast (CachedAST): Cached AST data
+        """
+        # Remove oldest entries if cache is full
+        if len(self._memory_cache) >= self._cache_max_size:
+            # Remove oldest entry (simple FIFO)
+            oldest_key = next(iter(self._memory_cache))
+            del self._memory_cache[oldest_key]
+        
+        self._memory_cache[cache_key] = cached_ast
+    
+    def parse_files_parallel(self, file_paths: List[str], languages: Optional[List[str]] = None) -> List[ParseResult]:
+        """
+        Parse multiple files in parallel.
+        
+        Args:
+            file_paths (List[str]): List of file paths to parse
+            languages (Optional[List[str]]): List of languages corresponding to files.
+                                           Auto-detected if None.
+        
+        Returns:
+            List[ParseResult]: List of parse results
+        """
+        if not file_paths:
+            return []
+        
+        # Auto-detect languages if not provided
+        if languages is None:
+            languages = [self._detect_language(fp) for fp in file_paths]
+        
+        # Filter out unsupported files
+        valid_files = []
+        for i, (file_path, language) in enumerate(zip(file_paths, languages)):
+            if language and language in self.supported_languages:
+                valid_files.append((file_path, language))
+            else:
+                logger.warning(f"Skipping unsupported file: {file_path} (language: {language})")
+        
+        if not valid_files:
+            return []
+        
+        results = []
+        
+        # Use ThreadPoolExecutor for parallel processing
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all parsing tasks
+            future_to_file = {
+                executor.submit(self._parse_single_file_with_cache, file_path, language): (file_path, language)
+                for file_path, language in valid_files
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_file):
+                file_path, language = future_to_file[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as e:
+                    logger.error(f"Error parsing {file_path}: {str(e)}")
+                    results.append(ParseResult(
+                        file_path=file_path,
+                        language=language,
+                        ast_node=None,
+                        structural_info={},
+                        parse_time=0.0,
+                        from_cache=False,
+                        error=str(e)
+                    ))
+        
+        # Sort results by original file order
+        file_path_to_index = {fp: i for i, fp in enumerate(file_paths)}
+        results.sort(key=lambda r: file_path_to_index.get(r.file_path, len(file_paths)))
+        
+        logger.info(f"Parsed {len(results)} files in parallel")
+        return results
+    
+    def _parse_single_file_with_cache(self, file_path: str, language: str) -> ParseResult:
+        """
+        Parse a single file with caching support.
+        
+        Args:
+            file_path (str): Path to the file
+            language (str): Programming language
+            
+        Returns:
+            ParseResult: Parse result
+        """
+        start_time = time.time()
+        
+        # Try to load from cache first
+        cached_ast = self._load_from_cache(file_path, language)
+        if cached_ast:
+            return ParseResult(
+                file_path=file_path,
+                language=language,
+                ast_node=None,  # We don't cache the actual AST node
+                structural_info=cached_ast.ast_data,
+                parse_time=cached_ast.parse_time,
+                from_cache=True
+            )
+        
+        # Parse the file
+        try:
+            ast_node = self.parse_file_to_ast(file_path, language)
+            if ast_node:
+                structural_info = self.extract_structural_info(ast_node, language)
+                parse_time = time.time() - start_time
+                
+                # Save to cache
+                self._save_to_cache(file_path, language, structural_info, parse_time)
+                
+                return ParseResult(
+                    file_path=file_path,
+                    language=language,
+                    ast_node=ast_node,
+                    structural_info=structural_info,
+                    parse_time=parse_time,
+                    from_cache=False
+                )
+            else:
+                return ParseResult(
+                    file_path=file_path,
+                    language=language,
+                    ast_node=None,
+                    structural_info={},
+                    parse_time=time.time() - start_time,
+                    from_cache=False,
+                    error="Failed to parse AST"
+                )
+        
+        except Exception as e:
+            return ParseResult(
+                file_path=file_path,
+                language=language,
+                ast_node=None,
+                structural_info={},
+                parse_time=time.time() - start_time,
+                from_cache=False,
+                error=str(e)
+            )
+    
+    def clear_cache(self, file_path: Optional[str] = None) -> None:
+        """
+        Clear AST cache.
+        
+        Args:
+            file_path (Optional[str]): Specific file to clear from cache.
+                                     If None, clears entire cache.
+        """
+        if not self.enable_cache:
+            return
+        
+        if file_path:
+            # Clear specific file from cache
+            for language in self.supported_languages:
+                cache_key = self._get_cache_key(file_path, language)
+                
+                # Remove from memory cache
+                if cache_key in self._memory_cache:
+                    del self._memory_cache[cache_key]
+                
+                # Remove from disk cache
+                cache_file = self._get_cache_file_path(cache_key)
+                if cache_file.exists():
+                    cache_file.unlink()
+            
+            logger.info(f"Cleared cache for {file_path}")
+        else:
+            # Clear entire cache
+            self._memory_cache.clear()
+            
+            # Remove all cache files
+            if self.cache_dir.exists():
+                for cache_file in self.cache_dir.glob("*.json"):
+                    cache_file.unlink()
+            
+            logger.info("Cleared entire AST cache")
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get cache statistics.
+        
+        Returns:
+            Dict[str, Any]: Cache statistics
+        """
+        if not self.enable_cache:
+            return {"cache_enabled": False}
+        
+        memory_cache_size = len(self._memory_cache)
+        
+        disk_cache_size = 0
+        total_cache_size_bytes = 0
+        if self.cache_dir.exists():
+            cache_files = list(self.cache_dir.glob("*.json"))
+            disk_cache_size = len(cache_files)
+            total_cache_size_bytes = sum(f.stat().st_size for f in cache_files)
+        
+        return {
+            "cache_enabled": True,
+            "cache_dir": str(self.cache_dir),
+            "memory_cache_size": memory_cache_size,
+            "memory_cache_max_size": self._cache_max_size,
+            "disk_cache_size": disk_cache_size,
+            "total_cache_size_bytes": total_cache_size_bytes,
+            "total_cache_size_mb": round(total_cache_size_bytes / (1024 * 1024), 2)
+        }
+
     def _initialize_parsers(self) -> None:
         """
         Initialize Tree-sitter parsers for supported languages.
