@@ -12,6 +12,7 @@ The core mission is to significantly improve code quality, enhance developer pro
 * **Hybrid Analysis Model:** Combines the structural precision of AST-based analysis with the contextual understanding of LLMs and Retrieval Augmented Generation (RAG).  
 * **Multi-Agent Architecture:** Employs a system of specialized AI agents (orchestrated by LangGraph) to handle distinct tasks in the review process, such as code fetching, parsing, static analysis, impact analysis, LLM interaction, and report generation.  
 * **Interactive Web Application:** Modern React-based frontend with interactive diagram visualization, zoom/pan capabilities, and specialized language viewers.
+* **Enhanced XAI Solution Suggestions:** Advanced solution suggestion engine with explainable AI capabilities, multiple alternatives analysis, confidence scoring, evidence-based reasoning, and comprehensive error handling.
 * **Actionable Error Resolution:** Focuses on generating clear, context-aware, and practical suggestions to help developers easily fix identified issues.  
 * **Advanced Diagram Generation:** Generates interactive class diagrams and sequence diagrams (using PlantUML/Mermaid.js) with timeline navigation and export capabilities.
 * **Multi-Language Support:** Python, Java, Kotlin (including Android-specific analysis) with language-specific report viewers.
@@ -21,6 +22,34 @@ The core mission is to significantly improve code quality, enhance developer pro
 * **Standalone & Self-Hosted:** Designed to operate as an independent tool, self-hosted by the user to ensure data privacy and control over proprietary code.  
 * **Open Source Prioritization:** Built with a strong preference for open-source technologies and components.
 * **Change Impact Analysis:** Phân tích tác động của thay đổi mã nguồn (ImpactAnalysisAgent) giúp xác định các file, class, function bị ảnh hưởng trực tiếp/gián tiếp bởi diff hoặc PR, hỗ trợ đánh giá rủi ro lan truyền và ưu tiên review.
+
+### **🎯 Enhanced Solution Suggestion Agent**
+
+The system now features an **advanced Enhanced Solution Suggestion Agent** with cutting-edge XAI (Explainable AI) capabilities:
+
+#### **Core XAI Features**
+- **Explainable Reasoning**: Detailed explanations for why solutions are recommended with confidence scoring
+- **Evidence-Based Analysis**: Supporting evidence from best practices, security principles, and performance benchmarks
+- **Multiple Solution Alternatives**: Up to 3 different approaches with comprehensive pros/cons analysis
+- **Confidence Tracking**: Numerical confidence scores (0.0-1.0) with human-readable confidence levels
+
+#### **Advanced Capabilities**
+- **Diverse Suggestion Types**: Security fixes, performance optimizations, best practices, bug fixes, testing improvements, architecture recommendations
+- **Context-Specific Prompts**: Tailored prompts based on finding type (security, performance, etc.)
+- **Comprehensive Error Handling**: Graceful fallback mechanisms for LLM timeouts, network errors, and malformed responses
+- **Performance Metrics**: Real-time tracking of generation times, success rates, and quality metrics
+
+#### **Solution Quality Features**
+- **Implementation Complexity Assessment**: Low/medium/high complexity ratings with effort estimates
+- **Impact Analysis**: Detailed assessment of potential impact if solutions are applied
+- **Step-by-Step Guidance**: Clear implementation steps and best practice recommendations
+- **Risk Assessment**: Comprehensive risk analysis for each proposed solution
+
+#### **Production-Ready Reliability**
+- **Batch Processing**: Efficient processing of multiple findings with metrics tracking
+- **Unicode Support**: Full support for international characters and emojis in code
+- **Memory Management**: Optimized for large codebases and complex analysis
+- **Comprehensive Testing**: 39 test cases covering normal operations, edge cases, and error scenarios
 
 ## **Strategic Value**
 

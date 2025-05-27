@@ -16,10 +16,10 @@
   - [x] Cài đặt logic analyze_impact (diff, dependency, propagation)
   - [x] Tích hợp vào orchestrator và reporting
   - [x] Viết unit tests cho agent (khung, models)
-- [ ] **Upgrade SolutionSuggestionAgent**
-  - [ ] Add explainable capability (reasoning, confidence, evidence)
-  - [ ] Diversify suggestions (multiple options, pros/cons analysis)
-  - [ ] Test edge cases, LLM errors
+- [x] **Upgrade SolutionSuggestionAgent** (2024-12-19)
+  - [x] Add explainable capability (reasoning, confidence, evidence)
+  - [x] Diversify suggestions (multiple options, pros/cons analysis)
+  - [x] Test edge cases, LLM errors
 
 ### 2.2. UI/UX & Visualization (Update May 2025)
 - [ ] **Modernize UI/UX (2025 trend)**
