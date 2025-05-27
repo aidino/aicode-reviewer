@@ -27,6 +27,8 @@ tree-sitter-python>=0.20.1
 tree-sitter-java>=0.20.1
 tree-sitter-kotlin>=0.20.1
 tree-sitter-xml>=0.20.1
+tree-sitter-javascript>=0.20.1
+tree-sitter-language-pack>=0.7.3
 
 # Code complexity and quality metrics
 radon

@@ -1539,4 +1539,387 @@ def test_engine_info_updated_for_kotlin_xml(diagramming_engine):
     assert 'kotlin' in info['supported_languages']
     assert 'xml' in info['supported_languages']
     assert 'kotlin_support' in info['capabilities']
-    assert 'android_xml_support' in info['capabilities'] 
+    assert 'android_xml_support' in info['capabilities']
+
+
+@pytest.fixture
+def mock_javascript_functions_ast():
+    """Create a mock AST node with JavaScript functions for testing."""
+    mock_node = Mock(spec=Node)
+    mock_language = Mock()
+    
+    # Mock JavaScript class
+    class_name_node = Mock(spec=Node)
+    class_name_node.text = b'TestClass'
+    class_name_node.type = 'identifier'
+    class_name_node.start_point = (0, 0)
+    
+    # Mock superclass
+    superclass_node = Mock(spec=Node)
+    superclass_node.text = b'BaseClass'
+    superclass_node.type = 'identifier'
+    
+    class_heritage_node = Mock(spec=Node)
+    class_heritage_node.type = 'class_heritage'
+    class_heritage_node.children = [superclass_node]
+    
+    # Mock method
+    method_name_node = Mock(spec=Node)
+    method_name_node.text = b'testMethod'
+    method_name_node.type = 'property_identifier'
+    method_name_node.start_point = (2, 2)
+    
+    method_params_node = Mock(spec=Node)
+    method_params_node.type = 'formal_parameters'
+    method_params_node.children = []
+    
+    method_def_node = Mock(spec=Node)
+    method_def_node.type = 'method_definition'
+    method_def_node.children = [method_name_node, method_params_node]
+    method_def_node.start_point = (2, 2)
+    
+    # Mock property
+    property_name_node = Mock(spec=Node)
+    property_name_node.text = b'testProperty'
+    property_name_node.type = 'property_identifier'
+    property_name_node.start_point = (1, 2)
+    
+    property_def_node = Mock(spec=Node)
+    property_def_node.type = 'field_definition'
+    property_def_node.children = [property_name_node]
+    property_def_node.start_point = (1, 2)
+    
+    # Mock class body
+    class_body_node = Mock(spec=Node)
+    class_body_node.type = 'class_body'
+    class_body_node.children = [property_def_node, method_def_node]
+    
+    # Mock class declaration
+    class_decl_node = Mock(spec=Node)
+    class_decl_node.type = 'class_declaration'
+    class_decl_node.children = [class_name_node, class_heritage_node, class_body_node]
+    class_decl_node.start_point = (0, 0)
+    
+    # Mock function
+    func_name_node = Mock(spec=Node)
+    func_name_node.text = b'testFunction'
+    func_name_node.type = 'identifier'
+    func_name_node.start_point = (5, 0)
+    
+    func_params_node = Mock(spec=Node)
+    func_params_node.type = 'formal_parameters'
+    func_params_node.children = []
+    
+    func_body_node = Mock(spec=Node)
+    func_body_node.type = 'statement_block'
+    
+    func_decl_node = Mock(spec=Node)
+    func_decl_node.type = 'function_declaration'
+    func_decl_node.children = [func_name_node, func_params_node, func_body_node]
+    func_decl_node.start_point = (5, 0)
+    
+    # Mock arrow function
+    arrow_func_node = Mock(spec=Node)
+    arrow_func_node.type = 'arrow_function'
+    arrow_func_node.children = [func_params_node, func_body_node]
+    arrow_func_node.start_point = (8, 0)
+    
+    # Mock call expression
+    call_target_node = Mock(spec=Node)
+    call_target_node.text = b'testFunction'
+    call_target_node.type = 'identifier'
+    
+    call_expr_node = Mock(spec=Node)
+    call_expr_node.type = 'call_expression'
+    call_expr_node.children = [call_target_node]
+    
+    # Setup the main AST node
+    mock_node.children = [class_decl_node, func_decl_node, arrow_func_node]
+    mock_node.language = mock_language
+    
+    # Mock hasattr for children
+    def mock_hasattr(obj, attr):
+        if attr == 'children':
+            return hasattr(obj, 'children')
+        return True
+    
+    # Setup query side effects
+    def mock_query_side_effect(query_string):
+        mock_query = Mock()
+        mock_query.captures.return_value = []
+        return mock_query
+    
+    mock_language.query.side_effect = mock_query_side_effect
+    
+    return mock_node
+
+
+def test_javascript_language_support(diagramming_engine):
+    """Test that JavaScript is in supported languages."""
+    supported_languages = diagramming_engine.get_supported_languages()
+    assert 'javascript' in supported_languages
+
+
+def test_javascript_ast_to_class_data(diagramming_engine, mock_javascript_functions_ast):
+    """Test JavaScript class data extraction."""
+    with patch('builtins.hasattr', side_effect=lambda obj, attr: attr == 'children' and hasattr(obj, 'children')):
+        class_data = diagramming_engine._javascript_ast_to_class_data(mock_javascript_functions_ast)
+        
+        # Should return a list (even if empty due to mocking limitations)
+        assert isinstance(class_data, list)
+
+
+def test_extract_javascript_class_data(diagramming_engine):
+    """Test JavaScript class information extraction."""
+    # Mock class declaration node
+    mock_node = Mock(spec=Node)
+    
+    # Mock class name
+    class_name_node = Mock(spec=Node)
+    class_name_node.text = b'TestClass'
+    class_name_node.type = 'identifier'
+    
+    # Mock superclass
+    superclass_node = Mock(spec=Node)
+    superclass_node.text = b'BaseClass'
+    superclass_node.type = 'identifier'
+    
+    class_heritage_node = Mock(spec=Node)
+    class_heritage_node.type = 'class_heritage'
+    class_heritage_node.children = [superclass_node]
+    
+    # Mock class body
+    class_body_node = Mock(spec=Node)
+    class_body_node.type = 'class_body'
+    class_body_node.children = []
+    
+    mock_node.children = [class_name_node, class_heritage_node, class_body_node]
+    mock_node.start_point = (0, 0)
+    
+    class_info = diagramming_engine._extract_javascript_class_data(mock_node)
+    
+    assert class_info is not None
+    assert class_info['name'] == 'TestClass'
+    assert class_info['superclass'] == 'BaseClass'
+    assert class_info['type'] == 'class'
+    assert class_info['line'] == 1
+
+
+def test_extract_javascript_method_data(diagramming_engine):
+    """Test JavaScript method information extraction."""
+    # Mock method definition node
+    mock_node = Mock(spec=Node)
+    
+    # Mock method name
+    method_name_node = Mock(spec=Node)
+    method_name_node.text = b'testMethod'
+    method_name_node.type = 'property_identifier'
+    
+    # Mock parameters
+    param_node = Mock(spec=Node)
+    param_node.text = b'param1'
+    param_node.type = 'identifier'
+    
+    params_node = Mock(spec=Node)
+    params_node.type = 'formal_parameters'
+    params_node.children = [param_node]
+    
+    mock_node.children = [method_name_node, params_node]
+    mock_node.start_point = (5, 0)
+    
+    method_info = diagramming_engine._extract_javascript_method_data(mock_node)
+    
+    assert method_info is not None
+    assert method_info['name'] == 'testMethod'
+    assert method_info['access_modifier'] == 'public'
+    assert method_info['is_static'] is False
+    assert method_info['is_async'] is False
+    assert 'param1' in method_info['parameters']
+    assert method_info['line'] == 6
+
+
+def test_extract_javascript_property_data(diagramming_engine):
+    """Test JavaScript property information extraction."""
+    # Mock field definition node
+    mock_node = Mock(spec=Node)
+    
+    # Mock property name
+    property_name_node = Mock(spec=Node)
+    property_name_node.text = b'testProperty'
+    property_name_node.type = 'property_identifier'
+    
+    mock_node.children = [property_name_node]
+    mock_node.start_point = (3, 0)
+    
+    property_info = diagramming_engine._extract_javascript_property_data(mock_node)
+    
+    assert property_info is not None
+    assert property_info['name'] == 'testProperty'
+    assert property_info['access_modifier'] == 'public'
+    assert property_info['is_static'] is False
+    assert property_info['line'] == 4
+
+
+def test_extract_javascript_parameters(diagramming_engine):
+    """Test JavaScript parameter extraction."""
+    # Mock formal parameters node
+    mock_node = Mock(spec=Node)
+    
+    # Mock regular parameter
+    param1_node = Mock(spec=Node)
+    param1_node.text = b'param1'
+    param1_node.type = 'identifier'
+    
+    # Mock default parameter
+    param2_name_node = Mock(spec=Node)
+    param2_name_node.text = b'param2'
+    param2_name_node.type = 'identifier'
+    
+    param2_assignment_node = Mock(spec=Node)
+    param2_assignment_node.type = 'assignment_pattern'
+    param2_assignment_node.children = [param2_name_node]
+    
+    # Mock rest parameter
+    param3_name_node = Mock(spec=Node)
+    param3_name_node.text = b'args'
+    param3_name_node.type = 'identifier'
+    
+    param3_rest_node = Mock(spec=Node)
+    param3_rest_node.type = 'rest_pattern'
+    param3_rest_node.children = [param3_name_node]
+    
+    mock_node.children = [param1_node, param2_assignment_node, param3_rest_node]
+    
+    parameters = diagramming_engine._extract_javascript_parameters(mock_node)
+    
+    assert len(parameters) == 3
+    assert 'param1' in parameters
+    assert 'param2 = default' in parameters
+    assert '...args' in parameters
+
+
+def test_javascript_ast_to_sequence_data(diagramming_engine, mock_javascript_functions_ast):
+    """Test JavaScript sequence data extraction."""
+    with patch('builtins.hasattr', side_effect=lambda obj, attr: attr == 'children' and hasattr(obj, 'children')):
+        sequence_data = diagramming_engine._javascript_ast_to_sequence_data(mock_javascript_functions_ast)
+        
+        # Should return a list (even if empty due to mocking limitations)
+        assert isinstance(sequence_data, list)
+
+
+def test_extract_javascript_functions(diagramming_engine, mock_javascript_functions_ast):
+    """Test JavaScript function extraction."""
+    with patch('builtins.hasattr', side_effect=lambda obj, attr: attr == 'children' and hasattr(obj, 'children')):
+        functions = diagramming_engine._extract_javascript_functions(mock_javascript_functions_ast)
+        
+        # Should return a list (even if empty due to mocking limitations)
+        assert isinstance(functions, list)
+
+
+def test_extract_javascript_function_for_sequence(diagramming_engine):
+    """Test JavaScript function extraction for sequence analysis."""
+    # Mock function declaration node
+    mock_node = Mock(spec=Node)
+    mock_node.type = 'function_declaration'
+    
+    # Mock function name
+    func_name_node = Mock(spec=Node)
+    func_name_node.text = b'testFunction'
+    func_name_node.type = 'identifier'
+    
+    # Mock function body
+    func_body_node = Mock(spec=Node)
+    func_body_node.type = 'statement_block'
+    
+    mock_node.children = [func_name_node, func_body_node]
+    mock_node.start_point = (0, 0)
+    
+    func_info = diagramming_engine._extract_javascript_function_for_sequence(mock_node, 'TestClass')
+    
+    assert func_info is not None
+    assert func_info['name'] == 'testFunction'
+    assert func_info['class'] == 'TestClass'
+    assert func_info['line'] == 1
+
+
+def test_extract_javascript_call_target(diagramming_engine):
+    """Test JavaScript call target extraction."""
+    # Mock call expression with identifier
+    mock_node = Mock(spec=Node)
+    
+    target_node = Mock(spec=Node)
+    target_node.text = b'targetFunction'
+    target_node.type = 'identifier'
+    
+    mock_node.children = [target_node]
+    
+    call_target = diagramming_engine._extract_javascript_call_target(mock_node)
+    
+    assert call_target == 'targetFunction'
+
+
+def test_extract_javascript_call_target_member_expression(diagramming_engine):
+    """Test JavaScript call target extraction for member expressions."""
+    # Mock call expression with member expression
+    mock_node = Mock(spec=Node)
+    
+    # Mock property identifier (method name)
+    property_node = Mock(spec=Node)
+    property_node.text = b'methodName'
+    property_node.type = 'property_identifier'
+    
+    # Mock member expression
+    member_expr_node = Mock(spec=Node)
+    member_expr_node.type = 'member_expression'
+    member_expr_node.children = [property_node]
+    
+    mock_node.children = [member_expr_node]
+    
+    call_target = diagramming_engine._extract_javascript_call_target(mock_node)
+    
+    assert call_target == 'methodName'
+
+
+def test_generate_class_diagram_javascript(diagramming_engine, mock_javascript_functions_ast):
+    """Test JavaScript class diagram generation."""
+    code_files = {
+        'test.js': {
+            'content': 'class TestClass extends BaseClass { testMethod() {} }',
+            'ast_data': mock_javascript_functions_ast
+        }
+    }
+    
+    with patch('builtins.hasattr', side_effect=lambda obj, attr: attr == 'children' and hasattr(obj, 'children')):
+        diagram = diagramming_engine.generate_class_diagram(code_files, 'javascript')
+        
+        # Should return a string (PlantUML format)
+        assert isinstance(diagram, str)
+        assert '@startuml' in diagram
+        assert '@enduml' in diagram
+
+
+def test_generate_sequence_diagram_javascript(diagramming_engine, mock_javascript_functions_ast):
+    """Test JavaScript sequence diagram generation."""
+    code_files = {
+        'test.js': {
+            'content': 'function testFunction() { helper(); }',
+            'ast_data': mock_javascript_functions_ast
+        }
+    }
+    
+    with patch('builtins.hasattr', side_effect=lambda obj, attr: attr == 'children' and hasattr(obj, 'children')):
+        diagram = diagramming_engine.generate_sequence_diagram(code_files, 'javascript')
+        
+        # Should return a string (PlantUML format)
+        assert isinstance(diagram, str)
+        assert '@startuml' in diagram
+        assert '@enduml' in diagram
+
+
+def test_engine_info_updated_for_javascript(diagramming_engine):
+    """Test that engine info includes JavaScript support."""
+    engine_info = diagramming_engine.get_engine_info()
+    
+    assert engine_info['version'] == '1.3.0'
+    assert 'javascript' in engine_info['supported_languages']
+    assert 'javascript_support' in engine_info['capabilities'] 

@@ -73,9 +73,10 @@ class TestASTParsingAgent:
         mock_parser_instance = Mock()
         mock_parser_class.return_value = mock_parser_instance
         
-        # Mock failed language loading
+        # Mock failed language loading for all languages including JavaScript
         with patch.object(ASTParsingAgent, '_load_python_language', return_value=None), \
-             patch.object(ASTParsingAgent, '_load_java_language', return_value=None):
+             patch.object(ASTParsingAgent, '_load_java_language', return_value=None), \
+             patch.object(ASTParsingAgent, '_load_javascript_language', return_value=None):
             # Act & Assert
             with pytest.raises(Exception, match="No language grammars could be loaded"):
                 ASTParsingAgent()

@@ -32,7 +32,7 @@ class DiagrammingEngine:
         """
         self.diagram_format = diagram_format.lower()
         self.supported_formats = ['plantuml', 'mermaid']
-        self.supported_languages = ['python', 'java', 'kotlin', 'xml']
+        self.supported_languages = ['python', 'java', 'kotlin', 'xml', 'javascript', 'dart']
         self.max_sequence_depth = 3  # Maximum depth for sequence tracing
         self.max_calls_per_function = 10  # Maximum calls to trace per function
         
@@ -274,6 +274,10 @@ class DiagrammingEngine:
                         class_data = self._kotlin_ast_to_class_data(ast_data.root_node)
                     elif language.lower() == 'xml':
                         class_data = self._xml_ast_to_class_data(ast_data.root_node)
+                    elif language.lower() == 'javascript':
+                        class_data = self._javascript_ast_to_class_data(ast_data.root_node)
+                    elif language.lower() == 'dart':
+                        class_data = self._dart_ast_to_class_data(ast_data.root_node)
                     else:
                         logger.warning(f"Unsupported language for class extraction: {language}")
                         continue
@@ -477,7 +481,7 @@ class DiagrammingEngine:
         """
         return {
             'engine_name': 'DiagrammingEngine',
-            'version': '1.2.0',  # Updated for Kotlin and XML support
+            'version': '1.4.0',  # Updated for Dart/Flutter support
             'current_format': self.diagram_format,
             'supported_formats': self.supported_formats,
             'supported_languages': self.supported_languages,
@@ -493,7 +497,10 @@ class DiagrammingEngine:
                 'plantuml_output',
                 'mermaid_output',
                 'kotlin_support',
-                'android_xml_support'
+                'android_xml_support',
+                'javascript_support',
+                'dart_support',
+                'flutter_support'
             ]
         }
     
@@ -942,6 +949,14 @@ class DiagrammingEngine:
                         )
                     elif language.lower() == 'kotlin':
                         sequence_data = self._kotlin_ast_to_sequence_data(
+                            ast_data.root_node, pr_changes, rag_agent
+                        )
+                    elif language.lower() == 'javascript':
+                        sequence_data = self._javascript_ast_to_sequence_data(
+                            ast_data.root_node, pr_changes, rag_agent
+                        )
+                    elif language.lower() == 'dart':
+                        sequence_data = self._dart_ast_to_sequence_data(
                             ast_data.root_node, pr_changes, rag_agent
                         )
                     else:
@@ -1931,4 +1946,1149 @@ class DiagrammingEngine:
         except Exception as e:
             logger.error(f"Error extracting Kotlin call target: {str(e)}")
         
+        return None
+
+    def _javascript_ast_to_class_data(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract class structure data from JavaScript AST node.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for JavaScript code
+            
+        Returns:
+            List[Dict]: List of dictionaries representing classes and relationships
+        """
+        try:
+            classes = []
+            relationships = []
+            
+            # Find all class declarations
+            def traverse_javascript_classes(node: Node):
+                if node.type == 'class_declaration':
+                    class_info = self._extract_javascript_class_data(node)
+                    if class_info:
+                        classes.append(class_info)
+                        
+                        # Extract inheritance relationships
+                        if class_info.get('superclass'):
+                            relationships.append({
+                                'type': 'inheritance',
+                                'from': class_info['name'],
+                                'to': class_info['superclass']
+                            })
+                
+                # Continue traversing
+                if hasattr(node, 'children') and node.children:
+                    for child in node.children:
+                        traverse_javascript_classes(child)
+            
+            traverse_javascript_classes(ast_node)
+            
+            logger.info(f"Extracted {len([c for c in classes if c.get('type') == 'class'])} JavaScript classes "
+                       f"and {len([c for c in classes if c.get('type') != 'class'])} relationships")
+            
+            return classes
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript class data from AST: {str(e)}")
+            return []
+    
+    def _extract_javascript_class_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract JavaScript class information from class declaration node.
+        
+        Args:
+            node (Node): JavaScript class declaration node
+            
+        Returns:
+            Optional[Dict]: Class information
+        """
+        try:
+            class_name = None
+            superclass = None
+            class_body = None
+            
+            # Extract class components
+            for child in node.children:
+                if child.type == 'identifier':
+                    class_name = child.text.decode('utf-8')
+                elif child.type == 'class_heritage':
+                    # Extract superclass from extends clause
+                    for heritage_child in child.children:
+                        if heritage_child.type == 'identifier':
+                            superclass = heritage_child.text.decode('utf-8')
+                elif child.type == 'class_body':
+                    class_body = child
+            
+            if class_name and class_body:
+                # Extract methods and properties
+                methods, properties = self._extract_javascript_class_members(class_body)
+                
+                return {
+                    'type': 'class',
+                    'name': class_name,
+                    'attributes': properties,
+                    'methods': methods,
+                    'superclass': superclass,
+                    'line': node.start_point[0] + 1
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript class data: {str(e)}")
+        
+        return None
+    
+    def _extract_javascript_class_members(self, class_body: Node) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Extract methods and properties from JavaScript class body.
+        
+        Args:
+            class_body (Node): JavaScript class body node
+            
+        Returns:
+            Tuple[List[Dict], List[Dict]]: (methods, properties)
+        """
+        methods = []
+        properties = []
+        
+        try:
+            for child in class_body.children:
+                if child.type == 'method_definition':
+                    method_info = self._extract_javascript_method_data(child)
+                    if method_info:
+                        methods.append(method_info)
+                elif child.type == 'field_definition':
+                    property_info = self._extract_javascript_property_data(child)
+                    if property_info:
+                        properties.append(property_info)
+                elif child.type == 'public_field_definition':
+                    property_info = self._extract_javascript_property_data(child)
+                    if property_info:
+                        properties.append(property_info)
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript class members: {str(e)}")
+        
+        return methods, properties
+    
+    def _extract_javascript_method_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract JavaScript method information from method definition node.
+        
+        Args:
+            node (Node): JavaScript method definition node
+            
+        Returns:
+            Optional[Dict]: Method information
+        """
+        try:
+            method_name = None
+            is_static = False
+            is_async = False
+            access_modifier = 'public'  # JavaScript default
+            parameters = []
+            
+            # Check for modifiers
+            for child in node.children:
+                if child.type == 'static':
+                    is_static = True
+                elif child.type == 'async':
+                    is_async = True
+                elif child.type == 'property_identifier':
+                    method_name = child.text.decode('utf-8')
+                elif child.type == 'formal_parameters':
+                    parameters = self._extract_javascript_parameters(child)
+            
+            if method_name:
+                # Determine access modifier based on naming convention
+                if method_name.startswith('_'):
+                    access_modifier = 'private'
+                elif method_name.startswith('#'):
+                    access_modifier = 'private'  # Private fields in modern JS
+                
+                method_signature = f"{method_name}({', '.join(parameters)})"
+                if is_async:
+                    method_signature = f"async {method_signature}"
+                if is_static:
+                    method_signature = f"static {method_signature}"
+                
+                return {
+                    'name': method_name,
+                    'signature': method_signature,
+                    'access_modifier': access_modifier,
+                    'is_static': is_static,
+                    'is_async': is_async,
+                    'parameters': parameters,
+                    'line': node.start_point[0] + 1
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript method data: {str(e)}")
+        
+        return None
+    
+    def _extract_javascript_property_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract JavaScript property information from field definition node.
+        
+        Args:
+            node (Node): JavaScript field definition node
+            
+        Returns:
+            Optional[Dict]: Property information
+        """
+        try:
+            property_name = None
+            is_static = False
+            access_modifier = 'public'
+            
+            # Extract property information
+            for child in node.children:
+                if child.type == 'static':
+                    is_static = True
+                elif child.type == 'property_identifier':
+                    property_name = child.text.decode('utf-8')
+            
+            if property_name:
+                # Determine access modifier based on naming convention
+                if property_name.startswith('_'):
+                    access_modifier = 'private'
+                elif property_name.startswith('#'):
+                    access_modifier = 'private'  # Private fields in modern JS
+                
+                return {
+                    'name': property_name,
+                    'access_modifier': access_modifier,
+                    'is_static': is_static,
+                    'line': node.start_point[0] + 1
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript property data: {str(e)}")
+        
+        return None
+    
+    def _extract_javascript_parameters(self, node: Node) -> List[str]:
+        """
+        Extract parameter names from JavaScript formal parameters node.
+        
+        Args:
+            node (Node): JavaScript formal parameters node
+            
+        Returns:
+            List[str]: List of parameter names
+        """
+        parameters = []
+        
+        try:
+            for child in node.children:
+                if child.type == 'identifier':
+                    parameters.append(child.text.decode('utf-8'))
+                elif child.type == 'assignment_pattern':
+                    # Handle default parameters
+                    for param_child in child.children:
+                        if param_child.type == 'identifier':
+                            param_name = param_child.text.decode('utf-8')
+                            parameters.append(f"{param_name} = default")
+                            break
+                elif child.type == 'rest_pattern':
+                    # Handle rest parameters (...args)
+                    for param_child in child.children:
+                        if param_child.type == 'identifier':
+                            param_name = param_child.text.decode('utf-8')
+                            parameters.append(f"...{param_name}")
+                            break
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript parameters: {str(e)}")
+        
+        return parameters
+    
+    def _javascript_ast_to_sequence_data(self, ast_node: Node, pr_changes: Optional[Dict] = None,
+                                       rag_agent: Optional[Any] = None) -> List[Dict]:
+        """
+        Extract sequence diagram data from JavaScript AST node.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for JavaScript code
+            pr_changes (Optional[Dict]): PR changes information
+            rag_agent (Optional[Any]): RAG agent for context
+            
+        Returns:
+            List[Dict]: List of interaction dictionaries for sequence diagram
+        """
+        try:
+            # Extract all functions from the AST
+            all_functions = self._extract_javascript_functions(ast_node)
+            
+            if not all_functions:
+                logger.warning("No JavaScript functions found for sequence analysis")
+                return []
+            
+            # Generate interactions for each function
+            all_interactions = []
+            
+            for function in all_functions:
+                # Skip if this function is not in PR changes (if specified)
+                if pr_changes and not self._is_function_in_changes(function, pr_changes):
+                    continue
+                
+                # Trace function calls
+                interactions = self._trace_javascript_function_calls(
+                    function, all_functions, depth=0, visited=set()
+                )
+                all_interactions.extend(interactions)
+            
+            logger.info(f"Generated {len(all_interactions)} JavaScript interactions for sequence diagram")
+            return all_interactions
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript sequence data: {str(e)}")
+            return []
+    
+    def _extract_javascript_functions(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract all function definitions from JavaScript AST.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node
+            
+        Returns:
+            List[Dict]: List of function information
+        """
+        functions = []
+        
+        try:
+            # Find all function declarations and expressions
+            def traverse_javascript_functions(node: Node, class_name: Optional[str] = None):
+                if node.type in ['function_declaration', 'function_expression', 'arrow_function']:
+                    func_info = self._extract_javascript_function_for_sequence(node, class_name)
+                    if func_info:
+                        functions.append(func_info)
+                elif node.type == 'method_definition':
+                    # Handle class methods
+                    func_info = self._extract_javascript_function_for_sequence(node, class_name)
+                    if func_info:
+                        functions.append(func_info)
+                elif node.type == 'class_declaration':
+                    # Extract class name and continue traversing
+                    current_class = None
+                    for child in node.children:
+                        if child.type == 'identifier':
+                            current_class = child.text.decode('utf-8')
+                            break
+                    
+                    # Continue traversing with class context
+                    if hasattr(node, 'children') and node.children:
+                        for child in node.children:
+                            traverse_javascript_functions(child, current_class)
+                else:
+                    # Continue traversing
+                    if hasattr(node, 'children') and node.children:
+                        for child in node.children:
+                            traverse_javascript_functions(child, class_name)
+            
+            traverse_javascript_functions(ast_node)
+            
+            logger.info(f"Found {len(functions)} JavaScript functions for sequence analysis")
+            return functions
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript functions: {str(e)}")
+            return []
+    
+    def _extract_javascript_function_for_sequence(self, node: Node, class_name: Optional[str] = None) -> Optional[Dict]:
+        """
+        Extract JavaScript function information for sequence analysis.
+        
+        Args:
+            node (Node): JavaScript function node
+            class_name (Optional[str]): Name of containing class if any
+            
+        Returns:
+            Optional[Dict]: Function information
+        """
+        try:
+            function_name = None
+            function_body = None
+            
+            # Extract function name and body based on node type
+            if node.type == 'function_declaration':
+                for child in node.children:
+                    if child.type == 'identifier':
+                        function_name = child.text.decode('utf-8')
+                    elif child.type == 'statement_block':
+                        function_body = child
+            elif node.type == 'method_definition':
+                for child in node.children:
+                    if child.type == 'property_identifier':
+                        function_name = child.text.decode('utf-8')
+                    elif child.type == 'statement_block':
+                        function_body = child
+            elif node.type in ['function_expression', 'arrow_function']:
+                # For anonymous functions, try to get name from context
+                function_name = 'anonymous'
+                for child in node.children:
+                    if child.type == 'statement_block':
+                        function_body = child
+                    elif child.type == 'expression_statement':
+                        function_body = child
+            
+            if function_name:
+                return {
+                    'name': function_name,
+                    'class': class_name,
+                    'body_node': function_body,
+                    'line': node.start_point[0] + 1
+                }
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript function for sequence: {str(e)}")
+        
+        return None
+    
+    def _trace_javascript_function_calls(self, function: Dict, all_functions: List[Dict],
+                                       depth: int, visited: Set[str]) -> List[Dict]:
+        """
+        Trace function calls within a JavaScript function body.
+        
+        Args:
+            function (Dict): Function information with body_node
+            all_functions (List[Dict]): All available functions
+            depth (int): Current tracing depth
+            visited (Set[str]): Set of visited function names to prevent infinite recursion
+            
+        Returns:
+            List[Dict]: List of interaction dictionaries
+        """
+        interactions = []
+        
+        # Limit depth to prevent infinite recursion
+        if depth >= self.max_sequence_depth:
+            return interactions
+        
+        # Limit calls per function
+        call_count = 0
+        max_calls = self.max_calls_per_function
+        
+        try:
+            body_node = function.get('body_node')
+            if not body_node:
+                return interactions
+            
+            caller_name = function['name']
+            if function.get('class'):
+                caller_name = f"{function['class']}.{function['name']}"
+            
+            # Avoid revisiting the same function
+            if caller_name in visited:
+                return interactions
+            
+            visited.add(caller_name)
+            
+            # Find function calls in the body
+            def find_javascript_calls(node: Node):
+                nonlocal call_count
+                if call_count >= max_calls:
+                    return
+                
+                if node.type == 'call_expression':
+                    callee_name = self._extract_javascript_call_target(node)
+                    if callee_name and not self._is_builtin_or_library_function(callee_name):
+                        # Find the called function
+                        called_function = None
+                        for func in all_functions:
+                            if func['name'] == callee_name:
+                                called_function = func
+                                break
+                        
+                        if called_function:
+                            callee_full_name = callee_name
+                            if called_function.get('class'):
+                                callee_full_name = f"{called_function['class']}.{callee_name}"
+                            
+                            interactions.append({
+                                'caller': caller_name,
+                                'callee': callee_full_name,
+                                'type': 'function_call'
+                            })
+                            
+                            call_count += 1
+                            
+                            # Recursively trace the called function
+                            if callee_full_name not in visited:
+                                sub_interactions = self._trace_javascript_function_calls(
+                                    called_function, all_functions, depth + 1, visited.copy()
+                                )
+                                interactions.extend(sub_interactions)
+                
+                # Continue traversing child nodes
+                if hasattr(node, 'children') and node.children:
+                    for child in node.children:
+                        find_javascript_calls(child)
+            
+            find_javascript_calls(body_node)
+            
+        except Exception as e:
+            logger.error(f"Error tracing JavaScript function calls: {str(e)}")
+        finally:
+            visited.discard(caller_name)
+        
+        return interactions
+    
+    def _extract_javascript_call_target(self, node: Node) -> Optional[str]:
+        """
+        Extract the target function name from a JavaScript call expression.
+        
+        Args:
+            node (Node): Call expression node
+            
+        Returns:
+            Optional[str]: Function name being called
+        """
+        try:
+            # Look for identifier or member expression
+            for child in node.children:
+                if child.type == 'identifier':
+                    return child.text.decode('utf-8')
+                elif child.type == 'member_expression':
+                    # Handle method calls like object.method()
+                    for member_child in child.children:
+                        if member_child.type == 'property_identifier':
+                            # Return the property name (method name)
+                            return member_child.text.decode('utf-8')
+            
+        except Exception as e:
+            logger.error(f"Error extracting JavaScript call target: {str(e)}")
+        
         return None 
+
+    def _dart_ast_to_class_data(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract class structure data from Dart AST node.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Dart code
+            
+        Returns:
+            List[Dict]: List of dictionaries representing classes and relationships
+        """
+        try:
+            classes = []
+            relationships = []
+            
+            # Traverse AST to find class definitions
+            def traverse_dart_classes(node: Node):
+                if node.type == 'class_definition':
+                    class_data = self._extract_dart_class_data(node)
+                    if class_data:
+                        classes.append(class_data)
+                        
+                        # Extract inheritance relationships
+                        if class_data.get('superclass'):
+                            relationships.append({
+                                'type': 'inheritance',
+                                'from': class_data['name'],
+                                'to': class_data['superclass']
+                            })
+                        
+                        # Extract mixin relationships
+                        for mixin in class_data.get('mixins', []):
+                            relationships.append({
+                                'type': 'mixin',
+                                'from': class_data['name'],
+                                'to': mixin
+                            })
+                        
+                        # Extract interface relationships
+                        for interface in class_data.get('interfaces', []):
+                            relationships.append({
+                                'type': 'implements',
+                                'from': class_data['name'],
+                                'to': interface
+                            })
+                
+                # Recursively traverse children
+                for child in node.children:
+                    traverse_dart_classes(child)
+            
+            traverse_dart_classes(ast_node)
+            
+            # Convert classes to standard format
+            result = []
+            for class_data in classes:
+                result.append({
+                    'type': 'class',
+                    'name': class_data['name'],
+                    'attributes': class_data.get('properties', []),
+                    'methods': class_data.get('methods', []),
+                    'superclass': class_data.get('superclass'),
+                    'mixins': class_data.get('mixins', []),
+                    'interfaces': class_data.get('interfaces', []),
+                    'line': class_data.get('line', 0),
+                    'is_abstract': class_data.get('is_abstract', False),
+                    'is_widget': class_data.get('is_widget', False)
+                })
+            
+            # Add relationships
+            for relationship in relationships:
+                result.append(relationship)
+            
+            logger.info(f"Extracted {len(classes)} Dart classes and {len(relationships)} relationships")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart class data from AST: {str(e)}")
+            return []
+    
+    def _extract_dart_class_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Dart class information from a class definition node.
+        
+        Args:
+            node (Node): Dart class definition node
+            
+        Returns:
+            Optional[Dict]: Extracted class information
+        """
+        try:
+            class_name = None
+            superclass = None
+            mixins = []
+            interfaces = []
+            methods = []
+            properties = []
+            is_abstract = False
+            
+            # Extract class name
+            for child in node.children:
+                if child.type == 'identifier':
+                    class_name = child.text.decode('utf-8') if child.text else None
+                    break
+            
+            if not class_name:
+                return None
+            
+            # Check for abstract modifier
+            parent_text = str(node.parent.text) if hasattr(node, 'parent') and node.parent else ""
+            is_abstract = 'abstract' in parent_text
+            
+            # Extract inheritance information and class members
+            for child in node.children:
+                if child.type == 'superclass':
+                    superclass = self._get_dart_type_name(child)
+                elif child.type == 'mixins':
+                    mixins = self._extract_dart_type_list(child)
+                elif child.type == 'interfaces':
+                    interfaces = self._extract_dart_type_list(child)
+                elif child.type == 'class_body':
+                    methods, properties = self._extract_dart_class_members(child)
+            
+            # Determine if this is a Flutter widget
+            is_widget = self._is_dart_flutter_widget(class_name, superclass)
+            
+            return {
+                'name': class_name,
+                'line': node.start_point[0] + 1,
+                'superclass': superclass,
+                'mixins': mixins,
+                'interfaces': interfaces,
+                'methods': methods,
+                'properties': properties,
+                'is_abstract': is_abstract,
+                'is_widget': is_widget
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart class data: {str(e)}")
+            return None
+    
+    def _extract_dart_class_members(self, class_body: Node) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Extract methods and properties from Dart class body.
+        
+        Args:
+            class_body (Node): Dart class body node
+            
+        Returns:
+            Tuple[List[Dict], List[Dict]]: (methods, properties)
+        """
+        methods = []
+        properties = []
+        
+        try:
+            for child in class_body.children:
+                if child.type == 'method_signature':
+                    method_data = self._extract_dart_method_data(child)
+                    if method_data:
+                        methods.append(method_data)
+                elif child.type in ['field_declaration', 'declared_identifier']:
+                    property_data = self._extract_dart_property_data(child)
+                    if property_data:
+                        properties.append(property_data)
+        except Exception as e:
+            logger.error(f"Error extracting Dart class members: {str(e)}")
+        
+        return methods, properties
+    
+    def _extract_dart_method_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Dart method information from a method signature node.
+        
+        Args:
+            node (Node): Dart method signature node
+            
+        Returns:
+            Optional[Dict]: Extracted method information
+        """
+        try:
+            method_name = None
+            return_type = 'void'
+            parameters = []
+            access_modifier = 'public'
+            is_static = False
+            is_async = False
+            is_override = False
+            
+            # Extract method name
+            for child in node.children:
+                if child.type == 'identifier':
+                    method_name = child.text.decode('utf-8') if child.text else None
+                    break
+            
+            if not method_name:
+                return None
+            
+            # Determine access modifier (Dart uses _ prefix for private)
+            if method_name.startswith('_'):
+                access_modifier = 'private'
+            
+            # Extract method details
+            for child in node.children:
+                if child.type == 'type_annotation':
+                    return_type = child.text.decode('utf-8') if child.text else 'void'
+                elif child.type == 'formal_parameter_list':
+                    parameters = self._extract_dart_parameters(child)
+            
+            # Check for modifiers in parent context
+            parent_text = str(node.parent.text) if hasattr(node, 'parent') and node.parent else ""
+            is_static = 'static' in parent_text
+            is_async = 'async' in parent_text
+            is_override = '@override' in parent_text
+            
+            return {
+                'name': method_name,
+                'return_type': return_type,
+                'parameters': parameters,
+                'access_modifier': access_modifier,
+                'is_static': is_static,
+                'is_async': is_async,
+                'is_override': is_override,
+                'line': node.start_point[0] + 1
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart method data: {str(e)}")
+            return None
+    
+    def _extract_dart_property_data(self, node: Node) -> Optional[Dict]:
+        """
+        Extract Dart property information from a field declaration node.
+        
+        Args:
+            node (Node): Dart field declaration node
+            
+        Returns:
+            Optional[Dict]: Extracted property information
+        """
+        try:
+            property_name = None
+            property_type = 'dynamic'
+            access_modifier = 'public'
+            is_static = False
+            is_final = False
+            is_const = False
+            
+            # Extract property name
+            for child in node.children:
+                if child.type == 'identifier':
+                    property_name = child.text.decode('utf-8') if child.text else None
+                    break
+            
+            if not property_name:
+                return None
+            
+            # Determine access modifier
+            if property_name.startswith('_'):
+                access_modifier = 'private'
+            
+            # Extract property details
+            for child in node.children:
+                if child.type == 'type_annotation':
+                    property_type = child.text.decode('utf-8') if child.text else 'dynamic'
+            
+            # Check for modifiers in parent context
+            parent_text = str(node.parent.text) if hasattr(node, 'parent') and node.parent else ""
+            is_static = 'static' in parent_text
+            is_final = 'final' in parent_text
+            is_const = 'const' in parent_text
+            
+            return {
+                'name': property_name,
+                'type': property_type,
+                'access_modifier': access_modifier,
+                'is_static': is_static,
+                'is_final': is_final,
+                'is_const': is_const,
+                'line': node.start_point[0] + 1
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart property data: {str(e)}")
+            return None
+    
+    def _extract_dart_parameters(self, node: Node) -> List[str]:
+        """
+        Extract parameter names from Dart formal parameter list.
+        
+        Args:
+            node (Node): Dart formal parameter list node
+            
+        Returns:
+            List[str]: List of parameter names
+        """
+        parameters = []
+        
+        try:
+            for child in node.children:
+                if child.type in ['normal_formal_parameter', 'optional_formal_parameter', 'named_formal_parameter']:
+                    param_name = None
+                    param_type = None
+                    
+                    for param_child in child.children:
+                        if param_child.type == 'identifier':
+                            param_name = param_child.text.decode('utf-8') if param_child.text else None
+                        elif param_child.type == 'type_annotation':
+                            param_type = param_child.text.decode('utf-8') if param_child.text else None
+                    
+                    if param_name:
+                        if param_type:
+                            parameters.append(f"{param_type} {param_name}")
+                        else:
+                            parameters.append(param_name)
+        except Exception as e:
+            logger.error(f"Error extracting Dart parameters: {str(e)}")
+        
+        return parameters
+    
+    def _dart_ast_to_sequence_data(self, ast_node: Node, pr_changes: Optional[Dict] = None,
+                                 rag_agent: Optional[Any] = None) -> List[Dict]:
+        """
+        Extract sequence data from Dart AST focusing on PR changes.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node for Dart code
+            pr_changes (Optional[Dict]): Information about PR changes
+            rag_agent (Optional[Any]): RAG agent for resolving external calls
+            
+        Returns:
+            List[Dict]: List of sequence interactions and participants
+        """
+        try:
+            interactions = []
+            participants = set()
+            
+            # If no PR changes specified, analyze all functions
+            if not pr_changes:
+                pr_changes = {'modified_functions': [], 'added_functions': []}
+            
+            # Find all function definitions first
+            all_functions = self._extract_dart_functions(ast_node)
+            
+            # Identify entry points from PR changes
+            entry_functions = []
+            for func_name in pr_changes.get('modified_functions', []) + pr_changes.get('added_functions', []):
+                matching_funcs = [f for f in all_functions if f['name'] == func_name]
+                entry_functions.extend(matching_funcs)
+            
+            # If no specific changes, use first few functions as entry points
+            if not entry_functions:
+                entry_functions = all_functions[:3]  # Limit to first 3 functions
+            
+            # Trace call graphs from entry points
+            for entry_func in entry_functions:
+                logger.info(f"Tracing Dart sequence from function: {entry_func['name']}")
+                
+                # Add entry function as participant
+                participant_name = f"{entry_func.get('class', 'Global')}.{entry_func['name']}"
+                participants.add(participant_name)
+                
+                # Trace calls from this function
+                call_chain = self._trace_dart_function_calls(
+                    entry_func, all_functions, depth=0, visited=set()
+                )
+                
+                interactions.extend(call_chain)
+                
+                # Add all called functions as participants
+                for interaction in call_chain:
+                    participants.add(interaction['caller'])
+                    participants.add(interaction['callee'])
+            
+            # Build sequence data structure
+            sequence_data = {
+                'participants': list(participants),
+                'interactions': interactions,
+                'entry_points': [f"{f.get('class', 'Global')}.{f['name']}" for f in entry_functions],
+                'language': 'dart'
+            }
+            
+            logger.info(f"Extracted Dart sequence data: {len(participants)} participants, "
+                       f"{len(interactions)} interactions")
+            
+            return [sequence_data]
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart sequence data: {str(e)}")
+            return []
+    
+    def _extract_dart_functions(self, ast_node: Node) -> List[Dict]:
+        """
+        Extract all function definitions from Dart AST.
+        
+        Args:
+            ast_node (Node): Tree-sitter AST node
+            
+        Returns:
+            List[Dict]: List of function information
+        """
+        functions = []
+        
+        try:
+            # Traverse AST to find function definitions
+            def traverse_dart_functions(node: Node, class_name: Optional[str] = None):
+                if node.type == 'class_definition':
+                    # Extract class name for context
+                    current_class = None
+                    for child in node.children:
+                        if child.type == 'identifier':
+                            current_class = child.text.decode('utf-8') if child.text else None
+                            break
+                    
+                    # Recursively process class body with class context
+                    for child in node.children:
+                        traverse_dart_functions(child, current_class)
+                
+                elif node.type in ['function_signature', 'method_signature']:
+                    func_data = self._extract_dart_function_for_sequence(node, class_name)
+                    if func_data:
+                        functions.append(func_data)
+                
+                else:
+                    # Recursively process children
+                    for child in node.children:
+                        traverse_dart_functions(child, class_name)
+            
+            traverse_dart_functions(ast_node)
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart functions: {str(e)}")
+        
+        return functions
+    
+    def _extract_dart_function_for_sequence(self, node: Node, class_name: Optional[str] = None) -> Optional[Dict]:
+        """
+        Extract Dart function information for sequence analysis.
+        
+        Args:
+            node (Node): Function signature node
+            class_name (Optional[str]): Name of containing class
+            
+        Returns:
+            Optional[Dict]: Function information for sequence analysis
+        """
+        try:
+            function_name = None
+            
+            # Extract function name
+            for child in node.children:
+                if child.type == 'identifier':
+                    function_name = child.text.decode('utf-8') if child.text else None
+                    break
+            
+            if not function_name:
+                return None
+            
+            return {
+                'name': function_name,
+                'class': class_name,
+                'node': node,
+                'line': node.start_point[0] + 1,
+                'full_name': f"{class_name}.{function_name}" if class_name else function_name
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting Dart function for sequence: {str(e)}")
+            return None
+    
+    def _trace_dart_function_calls(self, function: Dict, all_functions: List[Dict],
+                                 depth: int, visited: Set[str]) -> List[Dict]:
+        """
+        Trace function calls from a Dart function.
+        
+        Args:
+            function (Dict): Function to trace calls from
+            all_functions (List[Dict]): All available functions
+            depth (int): Current recursion depth
+            visited (Set[str]): Set of already visited functions
+            
+        Returns:
+            List[Dict]: List of call interactions
+        """
+        interactions = []
+        
+        if depth >= self.max_sequence_depth:
+            return interactions
+        
+        function_name = function['full_name']
+        if function_name in visited:
+            return interactions
+        
+        visited.add(function_name)
+        
+        try:
+            # Find function calls in the function body
+            function_node = function['node']
+            calls_found = []
+            
+            def find_dart_calls(node: Node):
+                if node.type == 'invocation_expression':
+                    call_target = self._extract_dart_call_target(node)
+                    if call_target and not self._is_builtin_or_library_function(call_target):
+                        calls_found.append(call_target)
+                
+                # Recursively search children
+                for child in node.children:
+                    find_dart_calls(child)
+            
+            find_dart_calls(function_node)
+            
+            # Limit calls per function
+            calls_found = calls_found[:self.max_calls_per_function]
+            
+            # Create interactions for each call
+            for call_target in calls_found:
+                interactions.append({
+                    'caller': function_name,
+                    'callee': call_target,
+                    'type': 'function_call',
+                    'line': function['line']
+                })
+                
+                # Find the called function and trace its calls
+                called_function = None
+                for func in all_functions:
+                    if func['full_name'] == call_target or func['name'] == call_target:
+                        called_function = func
+                        break
+                
+                if called_function:
+                    nested_interactions = self._trace_dart_function_calls(
+                        called_function, all_functions, depth + 1, visited.copy()
+                    )
+                    interactions.extend(nested_interactions)
+            
+        except Exception as e:
+            logger.error(f"Error tracing Dart function calls: {str(e)}")
+        
+        return interactions
+    
+    def _extract_dart_call_target(self, node: Node) -> Optional[str]:
+        """
+        Extract the target of a Dart function call.
+        
+        Args:
+            node (Node): Invocation expression node
+            
+        Returns:
+            Optional[str]: Target function name
+        """
+        try:
+            # Look for function identifier in invocation
+            for child in node.children:
+                if child.type == 'identifier':
+                    return child.text.decode('utf-8') if child.text else None
+                elif child.type == 'selector_expression':
+                    # Handle method calls like object.method()
+                    for selector_child in child.children:
+                        if selector_child.type == 'identifier':
+                            return selector_child.text.decode('utf-8') if selector_child.text else None
+        except Exception as e:
+            logger.error(f"Error extracting Dart call target: {str(e)}")
+        
+        return None
+    
+    # Helper methods for Dart analysis
+    
+    def _get_dart_type_name(self, node: Node) -> Optional[str]:
+        """
+        Get type name from a Dart type node.
+        
+        Args:
+            node (Node): Type node
+            
+        Returns:
+            Optional[str]: Type name
+        """
+        try:
+            for child in node.children:
+                if child.type in ['type_identifier', 'identifier']:
+                    return child.text.decode('utf-8') if child.text else None
+        except Exception:
+            pass
+        return None
+    
+    def _extract_dart_type_list(self, node: Node) -> List[str]:
+        """
+        Extract a list of type names from a Dart type list node.
+        
+        Args:
+            node (Node): Type list node
+            
+        Returns:
+            List[str]: List of type names
+        """
+        types = []
+        
+        try:
+            for child in node.children:
+                if child.type in ['type', 'type_identifier', 'identifier']:
+                    type_name = child.text.decode('utf-8') if child.text else None
+                    if type_name:
+                        types.append(type_name)
+        except Exception as e:
+            logger.debug(f"Error extracting Dart type list: {str(e)}")
+        
+        return types
+    
+    def _is_dart_flutter_widget(self, class_name: str, superclass: Optional[str]) -> bool:
+        """
+        Check if a Dart class is a Flutter widget.
+        
+        Args:
+            class_name (str): Class name
+            superclass (Optional[str]): Superclass name
+            
+        Returns:
+            bool: True if class is a Flutter widget
+        """
+        if not superclass:
+            return False
+        
+        flutter_widget_types = [
+            'StatelessWidget', 'StatefulWidget', 'Widget',
+            'InheritedWidget', 'RenderObjectWidget', 'ProxyWidget',
+            'State'  # State classes for StatefulWidget
+        ]
+        
+        return superclass in flutter_widget_types or 'Widget' in superclass
