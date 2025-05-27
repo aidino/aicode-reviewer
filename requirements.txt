@@ -9,7 +9,7 @@ pydantic
 pydantic-settings
 
 # Environment and configuration
-python-dotenv
+python-dotenv>=1.0.0
 
 # Web API framework
 fastapi
@@ -26,7 +26,7 @@ tree-sitter>=0.20.1
 tree-sitter-python>=0.20.1
 tree-sitter-java>=0.20.1
 tree-sitter-kotlin>=0.20.1
-tree-sitter-xml>=0.20.1
+tree-sitter-xml==0.7.0
 tree-sitter-javascript>=0.20.1
 tree-sitter-language-pack>=0.7.3
 
@@ -56,3 +56,6 @@ httpx
 celery
 redis
 aiofiles
+
+# Neo4j dependency
+neo4j>=5.14.0

@@ -27,6 +27,8 @@ except ImportError:
     Parser = None
     Node = None
 
+from ..knowledge_graph_builder import KnowledgeGraphBuilder
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ class ASTParsingAgent:
     - Caching ASTs for improved performance
     """
     
-    def __init__(self, cache_dir: Optional[str] = None, max_workers: int = 4, enable_cache: bool = True):
+    def __init__(self, cache_dir: Optional[str] = None, max_workers: int = 4, enable_cache: bool = True, language_dir: str = "./build/languages.so"):
         """
         Initialize the ASTParsingAgent.
         
@@ -95,6 +97,7 @@ class ASTParsingAgent:
             cache_dir (Optional[str]): Directory for AST cache. Defaults to temp directory.
             max_workers (int): Maximum number of worker threads for parallel parsing.
             enable_cache (bool): Whether to enable AST caching.
+            language_dir: Path to tree-sitter language definitions
         
         Raises:
             ImportError: If tree-sitter is not installed
@@ -105,7 +108,7 @@ class ASTParsingAgent:
                 "tree-sitter is not installed. Please install it with: pip install tree-sitter"
             )
         
-        self.parser = None
+        self.parser = Parser()
         self.languages = {}
         self.supported_languages = ['python']  # Start with only Python support
         self.max_workers = max_workers
@@ -127,6 +130,15 @@ class ASTParsingAgent:
         
         logger.info(f"ASTParsingAgent initialized with languages: {self.supported_languages}")
         logger.info(f"Parallel processing: {max_workers} workers, Cache: {'enabled' if enable_cache else 'disabled'}")
+        
+        self.kg_builder = KnowledgeGraphBuilder()
+        
+        # Load language definitions
+        try:
+            for lang in ["python", "javascript", "typescript"]:
+                self.languages[lang] = Language(language_dir, lang)
+        except Exception as e:
+            logger.error(f"Error loading language definitions: {str(e)}")
     
     def _calculate_file_hash(self, file_path: str) -> Optional[str]:
         """
@@ -543,7 +555,6 @@ class ASTParsingAgent:
             
             # Create parser with first available language
             first_language = list(self.languages.values())[0]
-            self.parser = Parser()
             self.parser.language = first_language  # Use language property instead of set_language
             
         except Exception as e:
@@ -2706,3 +2717,79 @@ class ASTParsingAgent:
             'state_variable_count': len(state_variables),
             'uses_state_management': has_set_state or has_init_state
         }
+    
+    def parse_file(self, file_path: str, language: str) -> Dict[str, Any]:
+        """Parse a source code file and build knowledge graph.
+        
+        Args:
+            file_path: Path to source file
+            language: Programming language of the file
+            
+        Returns:
+            Dict containing AST and analysis results
+        """
+        if language not in self.languages:
+            raise ValueError(f"Unsupported language: {language}")
+            
+        try:
+            # Read file
+            with open(file_path, "rb") as f:
+                source_code = f.read()
+                
+            # Parse AST
+            self.parser.set_language(self.languages[language])
+            tree = self.parser.parse(source_code)
+            
+            # Build knowledge graph
+            graph = self.kg_builder.build_from_ast(tree.root_node, file_path, language)
+            
+            return {
+                "ast": tree,
+                "graph": graph,
+                "success": True
+            }
+            
+        except Exception as e:
+            logger.error(f"Error parsing {file_path}: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+            
+    def analyze_dependencies(self, file_path: str) -> Dict[str, Any]:
+        """Analyze dependencies for a file using knowledge graph.
+        
+        Args:
+            file_path: Path to source file
+            
+        Returns:
+            Dict containing dependency analysis results
+        """
+        return self.kg_builder.find_dependencies(file_path)
+        
+    def analyze_call_hierarchy(self, function_name: str) -> Dict[str, Any]:
+        """Analyze call hierarchy for a function using knowledge graph.
+        
+        Args:
+            function_name: Name of function to analyze
+            
+        Returns:
+            Dict containing call hierarchy analysis
+        """
+        return self.kg_builder.find_call_hierarchy(function_name)
+        
+    def find_related_code(self, name: str, max_distance: int = 2) -> Dict[str, Any]:
+        """Find code related to a component using knowledge graph.
+        
+        Args:
+            name: Name of component to find related code for
+            max_distance: Maximum graph traversal distance
+            
+        Returns:
+            Dict containing related code analysis
+        """
+        return self.kg_builder.find_related_code(name, max_distance)
+        
+    def close(self):
+        """Clean up resources."""
+        self.kg_builder.close()

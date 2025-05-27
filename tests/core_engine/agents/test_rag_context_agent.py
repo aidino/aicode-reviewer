@@ -7,7 +7,8 @@ from unittest.mock import Mock, patch, MagicMock
 from qdrant_client.http.models import Distance, VectorParams, CollectionsResponse, CollectionDescription
 from sentence_transformers import SentenceTransformer
 
-from src.core_engine.agents.rag_context_agent import RAGContextAgent
+from src.core_engine.agents.rag_context_agent import RAGContextAgent, RAGContext
+from src.core_engine.agents.knowledge_graph.schema import CodeNode, CodeGraph
 
 @pytest.fixture
 def mock_collections_response():
@@ -60,9 +61,27 @@ def mock_code_splitter():
         yield splitter
 
 @pytest.fixture
-def rag_agent(mock_qdrant_client, mock_sentence_transformer, mock_code_splitter):
+def mock_neo4j_client():
+    return Mock()
+
+@pytest.fixture
+def mock_vector_store():
+    return Mock()
+
+@pytest.fixture
+def mock_embeddings():
+    return Mock()
+
+@pytest.fixture
+def rag_agent(mock_qdrant_client, mock_sentence_transformer, mock_code_splitter, mock_neo4j_client, mock_vector_store, mock_embeddings):
     """Create RAGContextAgent with mocked dependencies."""
-    return RAGContextAgent()
+    with patch('src.core_engine.agents.rag_context_agent.Chroma', return_value=mock_vector_store):
+        agent = RAGContextAgent(
+            vector_store_path="./test_vector_store",
+            embeddings_model=mock_embeddings,
+            neo4j_client=mock_neo4j_client
+        )
+        yield agent
 
 def test_init_with_defaults(mock_qdrant_client, mock_sentence_transformer, mock_code_splitter):
     """Test RAGContextAgent initialization with default values."""
@@ -263,4 +282,120 @@ def test_query_knowledge_base_error_handling(rag_agent, mock_qdrant_client, mock
     results = rag_agent.query_knowledge_base(query)
     
     # Should return empty results on error
-    assert len(results) == 0 
+    assert len(results) == 0
+
+def test_initialization(rag_agent, mock_neo4j_client, mock_vector_store):
+    """Test RAGContextAgent initialization"""
+    assert rag_agent.neo4j_client == mock_neo4j_client
+    assert rag_agent.vector_store == mock_vector_store
+    assert isinstance(rag_agent.text_splitter.chunk_size, int)
+
+def test_add_code_to_context(rag_agent, mock_vector_store, mock_neo4j_client):
+    """Test adding code to both vector store and knowledge graph"""
+    code = "def test_function():\\n    pass"
+    metadata = {
+        "file_path": "test.py",
+        "file_name": "test.py",
+        "language": "python"
+    }
+
+    # Test vector store addition
+    rag_agent.add_code_to_context(code, metadata)
+    mock_vector_store.add_texts.assert_called_once()
+
+    # Test knowledge graph addition
+    mock_neo4j_client.create_graph.assert_called_once()
+    graph = mock_neo4j_client.create_graph.call_args[0][0]
+    assert isinstance(graph, CodeGraph)
+    assert len(graph.nodes) == 1
+    assert graph.nodes[0].file_path == "test.py"
+
+def test_get_context(rag_agent, mock_vector_store, mock_neo4j_client):
+    """Test getting combined context from vector store and knowledge graph"""
+    # Mock vector store results
+    mock_doc = Mock()
+    mock_doc.page_content = "test content"
+    mock_vector_store.similarity_search_with_scores.return_value = [
+        (mock_doc, 0.8),
+        (mock_doc, 0.9)
+    ]
+
+    # Mock graph results
+    mock_neo4j_client.find_related.return_value = {
+        "nodes": ["test_node"],
+        "relationships": ["test_rel"]
+    }
+
+    # Get context
+    context = rag_agent.get_context("test query")
+    
+    # Verify results
+    assert isinstance(context, RAGContext)
+    assert len(context.text_chunks) == 2
+    assert context.confidence_score == 0.85
+    assert "nodes" in context.graph_context
+
+def test_get_code_structure(rag_agent, mock_neo4j_client):
+    """Test getting code structure from knowledge graph"""
+    mock_neo4j_client.find_dependencies.return_value = {
+        "nodes": ["test_node"],
+        "relationships": ["test_rel"]
+    }
+
+    result = rag_agent.get_code_structure("test.py")
+    mock_neo4j_client.find_dependencies.assert_called_once_with("test.py")
+    assert "nodes" in result
+    assert "relationships" in result
+
+def test_get_call_hierarchy(rag_agent, mock_neo4j_client):
+    """Test getting method call hierarchy from knowledge graph"""
+    mock_neo4j_client.find_call_hierarchy.return_value = {
+        "nodes": ["test_node"],
+        "relationships": ["test_rel"]
+    }
+
+    result = rag_agent.get_call_hierarchy("test_method")
+    mock_neo4j_client.find_call_hierarchy.assert_called_once_with("test_method")
+    assert "nodes" in result
+    assert "relationships" in result
+
+def test_find_related_components(rag_agent, mock_neo4j_client):
+    """Test finding related components from knowledge graph"""
+    mock_neo4j_client.find_related.return_value = {
+        "nodes": ["test_node"],
+        "relationships": ["test_rel"]
+    }
+
+    result = rag_agent.find_related_components("test_component", max_distance=3)
+    mock_neo4j_client.find_related.assert_called_once_with("test_component", 3)
+    assert "nodes" in result
+    assert "relationships" in result
+
+def test_close(rag_agent, mock_vector_store, mock_neo4j_client):
+    """Test cleanup of resources"""
+    rag_agent.close()
+    mock_vector_store.persist.assert_called_once()
+    mock_neo4j_client.close.assert_called_once()
+
+def test_error_handling(rag_agent, mock_vector_store, mock_neo4j_client):
+    """Test error handling in RAGContextAgent"""
+    # Test vector store error
+    mock_vector_store.similarity_search_with_scores.side_effect = Exception("Vector store error")
+    with pytest.raises(Exception):
+        rag_agent.get_context("test query")
+
+    # Test knowledge graph error
+    mock_neo4j_client.find_related.side_effect = Exception("Graph error")
+    with pytest.raises(Exception):
+        rag_agent.get_context("test query")
+
+def test_empty_results(rag_agent, mock_vector_store, mock_neo4j_client):
+    """Test handling of empty results"""
+    # Empty vector store results
+    mock_vector_store.similarity_search_with_scores.return_value = []
+    mock_neo4j_client.find_related.return_value = {}
+
+    context = rag_agent.get_context("test query")
+    assert len(context.text_chunks) == 0
+    assert context.confidence_score == 0
+    assert context.graph_context == {} 

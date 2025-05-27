@@ -9,7 +9,7 @@ This module implements a RAG (Retrieval Augmented Generation) agent that:
 """
 
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from pathlib import Path
 
 import numpy as np
@@ -18,36 +18,43 @@ from qdrant_client.http.models import Distance, VectorParams
 from sentence_transformers import SentenceTransformer
 from llama_index.core.node_parser import CodeSplitter
 from tree_sitter import Node
+from langchain.vectorstores import Chroma
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from pydantic import BaseModel
 
 import logging
 
+from .knowledge_graph.neo4j_client import Neo4jClient
+from .knowledge_graph.schema import CodeNode, CodeEdge, CodeGraph
+
 logger = logging.getLogger(__name__)
+
+class RAGContext(BaseModel):
+    """Context information from both vector store and knowledge graph"""
+    text_chunks: List[str]
+    graph_context: Dict[str, Any]
+    confidence_score: float
 
 class RAGContextAgent:
     """Agent for managing code context using RAG (Retrieval Augmented Generation)."""
     
     def __init__(
         self,
-        collection_name: str = "project_kb",
-        qdrant_url: str = "http://localhost:6333",
-        qdrant_api_key: Optional[str] = None
+        vector_store_path: str = "./vector_store",
+        embeddings_model: Optional[Any] = None,
+        neo4j_client: Optional[Neo4jClient] = None
     ):
-        """
-        Initialize the RAGContextAgent.
-        
-        Args:
-            collection_name (str): Name of the Qdrant collection to use
-            qdrant_url (str): URL of the Qdrant server
-            qdrant_api_key (Optional[str]): API key for Qdrant authentication
-        """
-        self.collection_name = collection_name
-        self.qdrant_url = qdrant_url
-        self.qdrant_api_key = qdrant_api_key
-        
-        # Initialize Qdrant client
-        self.client = QdrantClient(
-            url=self.qdrant_url,
-            api_key=self.qdrant_api_key
+        """Initialize RAG context agent with vector store and knowledge graph"""
+        self.embeddings = embeddings_model or OpenAIEmbeddings()
+        self.vector_store = Chroma(
+            persist_directory=vector_store_path,
+            embedding_function=self.embeddings
+        )
+        self.neo4j_client = neo4j_client or Neo4jClient()
+        self.text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=200
         )
         
         # Initialize sentence transformer model
@@ -192,4 +199,75 @@ class RAGContextAgent:
             } for hit in results]
         except Exception as e:
             logger.error(f"Error querying knowledge base: {str(e)}")
-            return [] 
+            return []
+
+    def add_code_to_context(self, code: str, metadata: Dict[str, str]):
+        """Add code to both vector store and knowledge graph"""
+        # Split code into chunks for vector store
+        chunks = self.text_splitter.split_text(code)
+        self.vector_store.add_texts(chunks, metadatas=[metadata] * len(chunks))
+
+        # Extract code structure for knowledge graph
+        # This would use AST parsing in practice
+        # For now, just create placeholder nodes
+        file_node = CodeNode(
+            id=metadata.get('file_path', ''),
+            type='File',
+            name=metadata.get('file_name', ''),
+            file_path=metadata.get('file_path', ''),
+            language=metadata.get('language', '')
+        )
+        
+        graph = CodeGraph(nodes=[file_node], edges=[])
+        self.neo4j_client.create_graph(graph)
+
+    def get_context(
+        self,
+        query: str,
+        k_vector: int = 3,
+        max_graph_distance: int = 2
+    ) -> RAGContext:
+        """Get combined context from vector store and knowledge graph"""
+        # Get relevant text chunks from vector store
+        vector_results = self.vector_store.similarity_search_with_scores(
+            query,
+            k=k_vector
+        )
+        chunks = [doc.page_content for doc, _ in vector_results]
+        scores = [score for _, score in vector_results]
+        avg_score = sum(scores) / len(scores) if scores else 0
+
+        # Get graph context based on query
+        # This is a simplified example - in practice would parse query
+        # to determine what graph patterns to look for
+        graph_context = self.neo4j_client.find_related(
+            query,
+            max_distance=max_graph_distance
+        )
+
+        return RAGContext(
+            text_chunks=chunks,
+            graph_context=graph_context,
+            confidence_score=avg_score
+        )
+
+    def get_code_structure(self, file_path: str) -> Dict[str, Any]:
+        """Get code structure from knowledge graph"""
+        return self.neo4j_client.find_dependencies(file_path)
+
+    def get_call_hierarchy(self, method_name: str) -> Dict[str, Any]:
+        """Get method call hierarchy from knowledge graph"""
+        return self.neo4j_client.find_call_hierarchy(method_name)
+
+    def find_related_components(
+        self,
+        name: str,
+        max_distance: int = 2
+    ) -> Dict[str, Any]:
+        """Find related code components from knowledge graph"""
+        return self.neo4j_client.find_related(name, max_distance)
+
+    def close(self):
+        """Clean up resources"""
+        self.vector_store.persist()
+        self.neo4j_client.close() 
