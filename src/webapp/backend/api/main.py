@@ -15,6 +15,7 @@ from sqlalchemy import text
 from .scan_routes import router as scan_router
 from .dashboard_routes import router as dashboard_router
 from .feedback_routes import router as feedback_router
+from .repository import router as repository_router
 from ..database import init_database, close_database
 from ..auth import auth_router
 
@@ -45,6 +46,7 @@ app.include_router(auth_router)
 app.include_router(scan_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(feedback_router, prefix="/api")
+app.include_router(repository_router, prefix="/api")
 
 
 @app.on_event("startup")

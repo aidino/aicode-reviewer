@@ -386,6 +386,26 @@ docker compose restart [service_name]
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Vite Documentation](https://vitejs.dev/)
 
+## Hướng dẫn khởi tạo database schema
+
+### 1. Lần đầu phát hành (chưa có migration)
+- Chạy script Python để tạo toàn bộ schema:
+  ```bash
+  python scripts/init_schema.py
+  ```
+- Script này sẽ tạo tất cả các bảng (users, projects, ...), KHÔNG cần migration.
+
+### 2. Đã có migration (alembic)
+- Chỉ chạy script shell:
+  ```bash
+  ./scripts/init-database.sh
+  ```
+- Script này sẽ enable extension, seed data, và chạy migration.
+
+### 3. Cảnh báo quan trọng
+- **KHÔNG chạy cả hai script trên cùng một database production** để tránh mất dữ liệu!
+- Chỉ dùng script Python cho lần phát hành đầu hoặc khi muốn reset toàn bộ schema.
+
 ---
 
 **Note:** Tất cả scripts được thiết kế để idempotent và safe để chạy multiple times. Chúng sẽ check existing state và chỉ thực hiện necessary changes. 

@@ -316,6 +316,25 @@
   - [x] Update LoginPage để sử dụng clean input design
   - [x] Test UI hoạt động bình thường
 
+### 2.11. Refactor Add Repository Feature (2025-06-11)
+- [ ] Backend: Refactor API /repositories chỉ nhận repo_url, tự động lấy metadata (name, description, language, avatar, ...)
+- [ ] Backend: Hỗ trợ clone repo private qua SSH key đã add trên server
+- [ ] Backend: Lấy metadata qua API public (GitHub/GitLab/Bitbucket) hoặc local parse nếu không có token
+- [ ] Backend: Xử lý lỗi chi tiết (repo không tồn tại, không truy cập được, SSH key thiếu, ...)
+- [ ] Backend: Viết unit test cho các trường hợp chính (public, private, lỗi)
+- [x] Backend: **Cập nhật hỗ trợ clone repo private qua Personal Access Token (PAT), không lưu token, chỉ dùng cho lần clone**
+- [ ] Backend: **Test clone repo private với PAT thành công**
+- [ ] Backend: **Cập nhật docs hướng dẫn sử dụng PAT cho dev**
+- [ ] Backend: **Tối ưu bảo mật, không log PAT ra console/log file**
+- [ ] Backend: **(Optional) Tích hợp OAuth/GitHub App cho production**
+- [ ] Backend: **Test lại toàn bộ flow với user thật**
+- [ ] Frontend: Thêm trường PAT (Personal Access Token, optional) vào form Add Repository
+- [ ] Frontend: Bổ sung tooltip/hướng dẫn lấy PAT (link GitHub, quyền tối thiểu, cảnh báo không lưu token)
+- [ ] Frontend: Gửi cả repo_url và access_token lên backend khi submit
+- [ ] Frontend: Hiển thị thông báo lỗi/thành công rõ ràng (nếu clone thất bại do quyền, PAT sai, ...)
+- [ ] Frontend: UX rõ ràng, validate URL và PAT phía client (nếu cần)
+- [ ] Frontend: Test lại toàn bộ flow với repo public/private
+
 ## 🏗️ Infrastructure & Deployment
 
 ## 3. Discovered During Work

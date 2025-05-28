@@ -49,6 +49,8 @@ from .auth_models import (
     UserSession,
 )
 
+from .project_models import Project
+
 __all__ = [
     # Scan models
     "ScanType",
@@ -94,4 +96,6 @@ __all__ = [
     "User",
     "UserProfile",
     "UserSession",
+    # Project model
+    "Project",
 ] 

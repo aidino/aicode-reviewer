@@ -112,6 +112,28 @@
 - Consider adding rule management UI, user permission (if needed)
 - Optimize performance for large codebases, reduce LLM cost
 - **Implement modern UI/UX and agent graph visualization as described above**
+- **Refactor Add Repository feature:**
+  - Only require user to input repository URL; backend fetches all metadata (name, description, language, avatar, etc.) automatically.
+  - Support private repositories using pre-added SSH key for cloning and metadata extraction.
+  - On Add Repository screen: only show URL input, no statistics or AI/Scan config.
+  - Move statistics and AI/Scan config to repository detail screen.
+  - Update backend API to handle metadata extraction, error handling, and SSH key usage.
+  - Update frontend to simplify Add form, handle loading/error/success, and redirect to detail page after add.
+  - Add comprehensive unit tests for both backend and frontend for all main and edge cases.
+
+## Database Design (Update 2025-06-11)
+- Bảng `projects` (hoặc `repositories`):
+  - id (PK), name, url, description, avatar_url, language, default_branch, is_private, created_at, updated_at, owner_id (FK users.id), stars, forks, last_synced_at
+  - Quan hệ: owner_id liên kết users.id (1 user nhiều project, 1 project thuộc 1 user)
+  - (Tùy chọn) Bảng project_members nếu muốn nhiều user quản lý 1 project
+- Lưu ý: Lần phát hành đầu tiên **không dùng migration**, chỉ cần cập nhật script init/reset database để tạo schema mới.
+- Script init/reset cần:
+  - Thêm model Project/Repository vào models backend
+  - Tạo bảng mới, liên kết với users
+  - (Tùy chọn) Thêm project_members
+  - Xoá toàn bộ dữ liệu cũ (nếu reset), tạo lại schema mới
+  - Test script đảm bảo tạo đúng schema
+  - Cập nhật README.md hướng dẫn sử dụng script
 
 ---
 

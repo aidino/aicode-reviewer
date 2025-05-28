@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# ========================
+# LƯU Ý QUAN TRỌNG:
+# - Nếu là lần phát hành đầu tiên, hãy chạy:
+# Sửa file .env ở thư mục gốc dự án, đổi POSTGRES_HOST=postgres thành POSTGRES_HOST=localhost.
+
+#     PYTHONPATH=src python scripts/init_schema.py
+#   để tạo toàn bộ schema database qua SQLAlchemy (không cần migration).
+# - Nếu đã có migration (alembic), chỉ chạy script shell này để enable extension, seed data, hoặc migrate.
+# - KHÔNG chạy cả hai script trên cùng một database production để tránh mất dữ liệu!
+# ========================
+
 # AI Code Reviewer - Database Initialization Script
 # Khởi tạo và reset database (PostgreSQL + Neo4j)
 
