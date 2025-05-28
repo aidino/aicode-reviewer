@@ -17,7 +17,7 @@ class UserRegisterRequest(BaseModel):
     """Schema for user registration request."""
     username: str = Field(..., min_length=3, max_length=50, description="Unique username")
     email: EmailStr = Field(..., description="User email address")
-    password: str = Field(..., min_length=8, description="User password")
+    password: str = Field(..., min_length=1, description="User password (development mode: relaxed validation)")
     full_name: Optional[str] = Field(None, max_length=100, description="User full name")
     
     model_config = ConfigDict(
@@ -25,7 +25,7 @@ class UserRegisterRequest(BaseModel):
             "example": {
                 "username": "john_doe",
                 "email": "john@example.com",
-                "password": "SecurePassword123!",
+                "password": "test",
                 "full_name": "John Doe"
             }
         }
@@ -63,13 +63,13 @@ class TokenRefreshRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     """Schema for password change request."""
     current_password: str = Field(..., description="Current password")
-    new_password: str = Field(..., min_length=8, description="New password")
+    new_password: str = Field(..., min_length=1, description="New password (development mode: relaxed validation)")
     
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "current_password": "CurrentPassword123!",
-                "new_password": "NewSecurePassword123!"
+                "current_password": "test",
+                "new_password": "newtest"
             }
         }
     )
@@ -89,7 +89,7 @@ class UpdateProfileRequest(BaseModel):
                 "avatar_url": "https://example.com/avatar.jpg",
                 "timezone": "Asia/Ho_Chi_Minh",
                 "preferences": {
-                    "theme": "dark",
+                    "theme": "light",
                     "notifications": {
                         "email": True,
                         "push": False
@@ -254,4 +254,52 @@ class ValidationErrorResponse(BaseModel):
                 ]
             }
         }
-    ) 
+    )
+
+
+class UserProfileWithDefaults(BaseModel):
+    """
+    User profile data with default values for profile completion.
+    
+    This model provides sensible defaults for new user profiles.
+    """
+    full_name: str = "New User"
+    bio: str = "Software developer passionate about code quality and AI-assisted development."
+    avatar_url: str = "https://via.placeholder.com/150?text=AI"
+    location: str = "Remote"
+    company: str = "Tech Company"
+    github_username: str = ""
+    linkedin_url: str = ""
+    website_url: str = ""
+    
+    # Notification settings with defaults
+    email_notifications: bool = True
+    security_alerts: bool = True
+    scan_updates: bool = True
+    weekly_reports: bool = False
+    
+    # App preferences with defaults
+    language: str = "en"
+    timezone: str = "UTC"
+    theme: str = "light"  # Only light theme available
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "full_name": "Alex Developer",
+                "bio": "Full-stack developer with 5+ years experience in Python, React, and cloud technologies. Passionate about clean code and automated testing.",
+                "avatar_url": "https://via.placeholder.com/150?text=AD", 
+                "location": "San Francisco, CA",
+                "company": "TechCorp Inc.",
+                "github_username": "alexdev",
+                "linkedin_url": "https://linkedin.com/in/alexdev",
+                "website_url": "https://alexdev.portfolio.com",
+                "email_notifications": True,
+                "security_alerts": True,
+                "scan_updates": True,
+                "weekly_reports": True,
+                "language": "en",
+                "timezone": "America/Los_Angeles",
+                "theme": "light",
+            }
+        } 

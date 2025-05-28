@@ -6,6 +6,7 @@ user registration, login, password validation, and session management.
 """
 
 import re
+import logging
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
@@ -21,6 +22,8 @@ from .utils import (
     get_auth_settings
 )
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
 class AuthService:
     """
@@ -43,12 +46,7 @@ class AuthService:
         """
         Validate password strength.
         
-        Requirements:
-        - At least 8 characters long
-        - Contains at least one uppercase letter
-        - Contains at least one lowercase letter
-        - Contains at least one digit
-        - Contains at least one special character
+        DEVELOPMENT MODE: Relaxed validation - only requires at least 1 character
         
         Args:
             password: Password to validate.
@@ -56,26 +54,33 @@ class AuthService:
         Returns:
             True if password meets requirements, False otherwise.
         """
-        if len(password) < 8:
-            return False
-        
-        # Check for uppercase letter
-        if not re.search(r"[A-Z]", password):
-            return False
-        
-        # Check for lowercase letter
-        if not re.search(r"[a-z]", password):
-            return False
-        
-        # Check for digit
-        if not re.search(r"\d", password):
-            return False
-        
-        # Check for special character
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        # Development mode: only require at least 1 character
+        if len(password) < 1:
             return False
         
         return True
+        
+        # Original strict validation (commented out for development)
+        # if len(password) < 8:
+        #     return False
+        # 
+        # # Check for uppercase letter
+        # if not re.search(r"[A-Z]", password):
+        #     return False
+        # 
+        # # Check for lowercase letter
+        # if not re.search(r"[a-z]", password):
+        #     return False
+        # 
+        # # Check for digit
+        # if not re.search(r"\d", password):
+        #     return False
+        # 
+        # # Check for special character
+        # if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        #     return False
+        # 
+        # return True
     
     def validate_email_format(self, email: str) -> bool:
         """
@@ -144,38 +149,55 @@ class AuthService:
         Raises:
             HTTPException: If validation fails or user already exists.
         """
+        logger.info(f"🚀 Starting registration process for username: {username}, email: {email}")
+        
         # Validate email format
+        logger.info("📧 Validating email format...")
         if not self.validate_email_format(email):
+            logger.error(f"❌ Invalid email format: {email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid email format"
             )
+        logger.info("✅ Email format valid")
         
         # Validate password strength
+        logger.info("🔐 Validating password strength...")
         if not self.validate_password_strength(password):
+            logger.error("❌ Password does not meet strength requirements")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password does not meet strength requirements"
             )
+        logger.info("✅ Password validation passed")
         
         # Check username availability
+        logger.info(f"👤 Checking username availability: {username}")
         if not self.check_username_availability(username):
+            logger.error(f"❌ Username already exists: {username}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username already exists"
             )
+        logger.info("✅ Username available")
         
         # Check email availability
+        logger.info(f"📧 Checking email availability: {email}")
         if not self.check_email_availability(email):
+            logger.error(f"❌ Email already registered: {email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
+        logger.info("✅ Email available")
         
         # Hash password
+        logger.info("🔒 Hashing password...")
         password_hash = hash_password(password)
+        logger.info("✅ Password hashed successfully")
         
         # Create user
+        logger.info("📝 Creating user in database...")
         user = User(
             username=username,
             email=email,
@@ -185,18 +207,39 @@ class AuthService:
         )
         
         self.db.add(user)
-        self.db.commit()
+        
+        try:
+            self.db.commit()
+            logger.info("✅ User committed to database")
+        except Exception as e:
+            logger.error(f"💥 Database commit failed: {str(e)}")
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user account"
+            ) from e
+        
         self.db.refresh(user)
+        logger.info(f"👤 User created with ID: {user.id}")
         
         # Create user profile if full_name provided
         if full_name:
+            logger.info(f"📋 Creating user profile with full name: {full_name}")
             profile = UserProfile(
                 user_id=user.id,
                 full_name=full_name
             )
             self.db.add(profile)
-            self.db.commit()
+            
+            try:
+                self.db.commit()
+                logger.info("✅ User profile created successfully")
+            except Exception as e:
+                logger.error(f"💥 Failed to create user profile: {str(e)}")
+                # Don't fail registration if profile creation fails
+                self.db.rollback()
         
+        logger.info(f"🎉 Registration complete for user: {username} (ID: {user.id})")
         return user
     
     def authenticate_user(
@@ -214,6 +257,8 @@ class AuthService:
         Returns:
             User object if authentication successful, None otherwise.
         """
+        logger.info(f"🔍 Authenticating user: {username_or_email}")
+        
         # Try to find user by username or email
         user = self.db.query(User).filter(
             (User.username == username_or_email) |
@@ -221,16 +266,24 @@ class AuthService:
         ).first()
         
         if not user:
+            logger.warning(f"❌ User not found: {username_or_email}")
             return None
+        
+        logger.info(f"👤 User found: {user.username} (ID: {user.id})")
         
         # Check if user is active
         if not user.is_active:
+            logger.warning(f"❌ User is inactive: {user.username}")
             return None
+        
+        logger.info(f"✅ User is active: {user.username}")
         
         # Verify password
         if not verify_password(password, user.password_hash):
+            logger.warning(f"❌ Password verification failed for user: {user.username}")
             return None
         
+        logger.info(f"✅ Password verified for user: {user.username}")
         return user
     
     def login_user(
@@ -255,34 +308,52 @@ class AuthService:
         Raises:
             HTTPException: If authentication fails.
         """
+        logger.info(f"🚀 Starting login process for: {username_or_email}")
+        
         # Authenticate user
         user = self.authenticate_user(username_or_email, password)
         if not user:
+            logger.error(f"❌ Authentication failed for: {username_or_email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials"
             )
         
-        # Create tokens
-        tokens = create_user_tokens(
-            user=user,
-            user_agent=user_agent,
-            ip_address=ip_address,
-            db=self.db
-        )
+        logger.info(f"✅ User authenticated successfully: {user.username}")
         
-        return {
-            **tokens,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "role": user.role if isinstance(user.role, str) else user.role.value,
-                "is_active": user.is_active,
-                "created_at": user.created_at,
-                "updated_at": user.updated_at
-            }
+        # Create tokens
+        logger.info(f"🔑 Creating tokens for user: {user.username}")
+        try:
+            tokens = create_user_tokens(
+                user=user,
+                user_agent=user_agent,
+                ip_address=ip_address,
+                db=self.db
+            )
+            logger.info(f"✅ Tokens created successfully for user: {user.username}")
+        except Exception as e:
+            logger.error(f"💥 Token creation failed for user {user.username}: {str(e)}", exc_info=True)
+            raise
+        
+        user_data = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role if isinstance(user.role, str) else user.role.value,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
+            "updated_at": user.updated_at
         }
+        
+        logger.info(f"📋 User data prepared: {user_data['username']} (role: {user_data['role']})")
+        
+        result = {
+            **tokens,
+            "user": user_data
+        }
+        
+        logger.info(f"🎉 Login process completed successfully for: {user.username}")
+        return result
     
     def logout_user(self, token: str) -> bool:
         """

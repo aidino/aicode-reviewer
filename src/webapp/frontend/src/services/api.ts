@@ -25,7 +25,7 @@ import {
 } from '../types';
 
 // API configuration
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
 
 class ApiService {
   private baseUrl: string;
@@ -79,6 +79,10 @@ class ApiService {
     try {
       const url = `${this.baseUrl}${endpoint}`;
       
+      console.log('🌐 [API] Making request to:', url);
+      console.log('📊 [API] Method:', options.method || 'GET');
+      console.log('🔑 [API] Has auth token:', !!this.authToken);
+      
       const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
       };
@@ -86,6 +90,11 @@ class ApiService {
       // Thêm Authorization header nếu có token
       if (this.authToken) {
         defaultHeaders['Authorization'] = `Bearer ${this.authToken}`;
+      }
+
+      console.log('📋 [API] Headers:', JSON.stringify(defaultHeaders, null, 2));
+      if (options.body) {
+        console.log('📦 [API] Request body:', options.body);
       }
 
       const response = await fetch(url, {
@@ -96,10 +105,14 @@ class ApiService {
         },
       });
 
+      console.log('📈 [API] Response status:', response.status);
+      console.log('✅ [API] Response ok:', response.ok);
+
       if (!response.ok) {
         let errorDetail = `HTTP ${response.status}`;
         try {
           const errorData = await response.json();
+          console.error('❌ [API] Error response data:', errorData);
           errorDetail = errorData.detail || errorDetail;
         } catch {
           // If we can't parse the error, use the status text
@@ -111,12 +124,15 @@ class ApiService {
           status_code: response.status,
         };
 
+        console.error('❌ [API] Returning error:', apiError);
         return { error: apiError };
       }
 
       const data = await response.json();
+      console.log('✅ [API] Success response data:', data);
       return { data };
     } catch (error) {
+      console.error('💥 [API] Fetch error:', error);
       const apiError: ApiError = {
         detail: error instanceof Error ? error.message : 'Unknown error occurred',
         status_code: 0,
@@ -254,12 +270,21 @@ class ApiService {
    *   Promise<ApiResponse<LoginResponse>>: Login response with user and tokens
    */
   async login(credentials: LoginRequest): Promise<ApiResponse<LoginResponse>> {
+    console.log('🔐 [API] Login attempt for:', credentials.username);
+    
+    const loginBody = {
+      username_or_email: credentials.username,
+      password: credentials.password,
+    };
+    
+    console.log('📨 [API] Login request body (password hidden):', {
+      username_or_email: credentials.username,
+      password: credentials.password ? '••••••••' : '(empty)'
+    });
+    
     return this.fetchWithErrorHandling<LoginResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({
-        username_or_email: credentials.username,
-        password: credentials.password,
-      }),
+      body: JSON.stringify(loginBody),
     });
   }
 
@@ -273,6 +298,16 @@ class ApiService {
    *   Promise<ApiResponse<LoginResponse>>: Registration response with user and tokens
    */
   async register(userData: RegisterRequest): Promise<ApiResponse<LoginResponse>> {
+    console.log('📝 [API] Registration attempt for:', userData.username);
+    console.log('📧 [API] Email:', userData.email);
+    console.log('👤 [API] Full name:', userData.full_name);
+    console.log('🔐 [API] Password length:', userData.password ? userData.password.length : 0);
+    
+    console.log('📨 [API] Registration request body (password hidden):', {
+      ...userData,
+      password: userData.password ? '••••••••' : '(empty)'
+    });
+    
     return this.fetchWithErrorHandling<LoginResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(userData),

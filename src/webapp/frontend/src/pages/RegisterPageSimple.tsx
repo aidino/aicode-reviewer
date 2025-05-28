@@ -1,12 +1,14 @@
 /**
- * RegisterPageSimple - Version đơn giản đồng nhất với LoginPageSimple
+ * RegisterPageSimple - Version thật sự với API calls và logging
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export const RegisterPageSimple: React.FC = () => {
   const navigate = useNavigate();
+  const { register, loading, error, isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -17,6 +19,14 @@ export const RegisterPageSimple: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('✅ [Frontend] User already authenticated, redirecting to dashboard');
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   // Password strength calculation (relaxed for development)
   const getPasswordStrength = (password: string) => {
@@ -72,13 +82,49 @@ export const RegisterPageSimple: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🚀 [Frontend] Register form submitted');
+    console.log('📧 [Frontend] Email:', formData.email);
+    console.log('👤 [Frontend] Full name:', formData.fullName);
+    console.log('🔐 [Frontend] Password length:', formData.password.length);
+    console.log('🌐 [Frontend] API Base URL:', (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000');
+    
     if (!validateForm()) {
+      console.log('❌ [Frontend] Form validation failed:', errors);
       return;
     }
 
-    console.log('Register attempt:', formData);
-    // For now just navigate to dashboard
-    navigate('/dashboard');
+    console.log('✅ [Frontend] Form validation passed, calling register API');
+
+    try {
+      // Extract first name and last name from full name
+      const nameParts = formData.fullName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
+      // Create username from email (before @ symbol)
+      const username = formData.email.split('@')[0] + '_' + Date.now();
+      
+      const registerData = {
+        username: username,
+        email: formData.email,
+        password: formData.password,
+        full_name: formData.fullName,
+      };
+      
+      console.log('📨 [Frontend] Sending register request:', {
+        ...registerData,
+        password: '••••••••'
+      });
+      
+      console.log('⏳ [Frontend] Calling register function...');
+      await register(registerData);
+      
+      // If no error occurred, user should be authenticated and redirected
+      console.log('✅ [Frontend] Registration successful!');
+      
+    } catch (err) {
+      console.error('❌ [Frontend] Registration error:', err);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -361,24 +407,72 @@ export const RegisterPageSimple: React.FC = () => {
 
           <button
             type="submit"
+            disabled={loading}
             style={{
               width: '100%',
               height: '48px',
-              backgroundColor: '#10b981',
+              backgroundColor: loading ? '#9ca3af' : '#10b981',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'background-color 0.2s'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s',
+              opacity: loading ? 0.7 : 1
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+            onMouseEnter={(e) => {
+              if (!loading) e.currentTarget.style.backgroundColor = '#059669';
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) e.currentTarget.style.backgroundColor = '#10b981';
+            }}
           >
-            Tạo tài khoản
+            {loading ? '⏳ Đang tạo tài khoản...' : 'Tạo tài khoản'}
           </button>
         </form>
+
+        {/* Error Display */}
+        {error && (
+          <div style={{
+            marginTop: '1rem',
+            padding: '0.75rem',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #ef4444',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <p style={{
+              fontSize: '14px',
+              color: '#dc2626',
+              margin: 0,
+              fontWeight: '500'
+            }}>
+              ❌ {error.detail || 'Đăng ký không thành công'}
+            </p>
+          </div>
+        )}
+
+        {/* Loading Display */}
+        {loading && (
+          <div style={{
+            marginTop: '1rem',
+            padding: '0.75rem',
+            backgroundColor: '#f0f9ff',
+            border: '1px solid #0ea5e9',
+            borderRadius: '8px',
+            textAlign: 'center'
+          }}>
+            <p style={{
+              fontSize: '14px',
+              color: '#0369a1',
+              margin: 0,
+              fontWeight: '500'
+            }}>
+              ⏳ Đang tạo tài khoản...
+            </p>
+          </div>
+        )}
 
         <div style={{
           marginTop: '1.5rem',

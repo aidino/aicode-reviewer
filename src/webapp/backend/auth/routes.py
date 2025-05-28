@@ -5,6 +5,7 @@ This module provides FastAPI routes for user authentication including
 registration, login, logout, profile management, and token operations.
 """
 
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials
@@ -30,6 +31,9 @@ from .schemas import (
     MessageResponse,
     UserSessionResponse
 )
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -62,19 +66,19 @@ def get_client_info(request: Request) -> tuple[Optional[str], Optional[str]]:
 
 @router.post(
     "/register",
-    response_model=UserResponse,
+    response_model=LoginResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new user",
-    description="Create a new user account with username, email, and password."
+    description="Create a new user account with username, email, and password. Automatically logs in the user."
 )
 @rate_limit("auth.register")
 async def register_user(
     user_data: UserRegisterRequest,
     request: Request,
     db: Session = Depends(get_db_session)
-) -> UserResponse:
+) -> LoginResponse:
     """
-    Register a new user.
+    Register a new user and automatically log them in.
     
     Args:
         user_data: User registration data.
@@ -82,14 +86,20 @@ async def register_user(
         db: Database session.
         
     Returns:
-        Created user information.
+        Login response with tokens and user information.
         
     Raises:
         HTTPException: If registration fails.
     """
+    logger.info(f"📝 Registration attempt for: {user_data.username} ({user_data.email})")
+    
     auth_service = AuthService(db)
+    user_agent, ip_address = get_client_info(request)
+    
+    logger.info(f"📡 Client info - User-Agent: {user_agent[:50] if user_agent else 'None'}..., IP: {ip_address}")
     
     try:
+        logger.info("👤 Creating user account...")
         user = auth_service.register_user(
             username=user_data.username,
             email=user_data.email,
@@ -97,11 +107,39 @@ async def register_user(
             full_name=user_data.full_name
         )
         
-        return UserResponse.model_validate(user)
+        logger.info(f"✅ User created successfully: {user.username} (ID: {user.id})")
         
-    except HTTPException:
+        # Automatically log in the newly registered user
+        logger.info("🔐 Auto-logging in new user...")
+        login_result = auth_service.login_user(
+            username_or_email=user_data.username,
+            password=user_data.password,
+            user_agent=user_agent,
+            ip_address=ip_address
+        )
+        
+        logger.info(f"✅ Auto-login successful for user: {login_result['user']['username']}")
+        
+        # Get token expiry time
+        settings = get_auth_settings()
+        expires_in = settings.jwt_access_token_expire_minutes * 60
+        
+        response = LoginResponse(
+            access_token=login_result["access_token"],
+            refresh_token=login_result["refresh_token"],
+            token_type=login_result["token_type"],
+            expires_in=expires_in,
+            user=UserResponse.model_validate(login_result["user"])
+        )
+        
+        logger.info(f"🎉 Registration and auto-login complete for user: {response.user.username}")
+        return response
+        
+    except HTTPException as e:
+        logger.warning(f"❌ Registration failed with HTTPException - Status: {e.status_code}, Detail: {e.detail}")
         raise
     except Exception as e:
+        logger.error(f"💥 Unexpected error during registration: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Registration failed"
@@ -134,10 +172,15 @@ async def login_user(
     Raises:
         HTTPException: If login fails.
     """
+    logger.info(f"🔐 Login attempt started for: {user_data.username_or_email}")
+    
     auth_service = AuthService(db)
     user_agent, ip_address = get_client_info(request)
     
+    logger.info(f"📡 Client info - User-Agent: {user_agent[:50] if user_agent else 'None'}..., IP: {ip_address}")
+    
     try:
+        logger.info("🔍 Calling auth_service.login_user...")
         login_result = auth_service.login_user(
             username_or_email=user_data.username_or_email,
             password=user_data.password,
@@ -145,11 +188,13 @@ async def login_user(
             ip_address=ip_address
         )
         
+        logger.info(f"✅ Login successful for user: {login_result['user']['username']}")
+        
         # Get token expiry time
         settings = get_auth_settings()
         expires_in = settings.jwt_access_token_expire_minutes * 60
         
-        return LoginResponse(
+        response = LoginResponse(
             access_token=login_result["access_token"],
             refresh_token=login_result["refresh_token"],
             token_type=login_result["token_type"],
@@ -157,9 +202,14 @@ async def login_user(
             user=UserResponse.model_validate(login_result["user"])
         )
         
-    except HTTPException:
+        logger.info(f"🎉 Login response prepared for user: {response.user.username}")
+        return response
+        
+    except HTTPException as e:
+        logger.warning(f"❌ Login failed with HTTPException - Status: {e.status_code}, Detail: {e.detail}")
         raise
     except Exception as e:
+        logger.error(f"💥 Unexpected error during login: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"

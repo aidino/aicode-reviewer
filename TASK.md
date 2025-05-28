@@ -319,6 +319,28 @@
 ## 🏗️ Infrastructure & Deployment
 
 ## 3. Discovered During Work
+- [x] **Debug Login Authentication Flow (2025-05-28)** ✅ COMPLETED
+  - [x] Fixed SQLAlchemy text() expression warning trong database health check
+  - [x] Added comprehensive logging cho authentication flow (routes, service, API)
+  - [x] Relaxed password validation cho development mode (AuthService và Pydantic schemas)
+  - [x] Fixed AttributeError trong auth routes khi access user.username từ dict
+  - [x] Verified complete login flow từ frontend API call đến backend database
+  - [x] Created test user và confirmed successful authentication với tokens
+  - [x] All authentication endpoints hoạt động với proper logging và error handling
+- [x] **Kiểm tra và Fix Registration Flow Logic (2025-05-28)** ✅ COMPLETED
+  - [x] Discovered RegisterPageSimple chỉ có dummy form không gọi API thật
+  - [x] Updated RegisterPageSimple để sử dụng AuthContext với real API calls
+  - [x] Added comprehensive logging cho registration flow (frontend và backend)
+  - [x] Fixed backend register endpoint để auto-login sau registration (trả về LoginResponse)
+  - [x] Added chi tiết logging trong AuthService register_user method
+  - [x] Verified complete registration flow từ frontend đến database:
+    - ✅ Frontend form validation và API call với logging
+    - ✅ Backend user creation với full validation và database insert
+    - ✅ Auto-login sau registration successful với tokens
+    - ✅ User profile creation với full_name
+    - ✅ All steps có comprehensive logging để debug
+  - [x] Tested với curl command và confirmed user ID: 3 được tạo thành công
+  - [x] Registration flow hoàn chỉnh và sẵn sàng để user sử dụng
 - [ ] Optimize performance for large codebases, reduce LLM cost
 - [ ] Add warnings when scan exceeds resource thresholds
 - [ ] Optimize knowledge base storage, periodic vector store cleanup

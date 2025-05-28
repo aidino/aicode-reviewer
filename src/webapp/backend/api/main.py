@@ -10,6 +10,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from .scan_routes import router as scan_router
 from .dashboard_routes import router as dashboard_router
@@ -105,7 +106,7 @@ async def health_check() -> JSONResponse:
         from ..database import get_database_manager
         db_manager = get_database_manager()
         with db_manager.session_scope() as session:
-            session.execute("SELECT 1")
+            session.execute(text("SELECT 1"))
     except Exception as e:
         logger.warning(f"Database health check failed: {e}")
         database_status = "error"

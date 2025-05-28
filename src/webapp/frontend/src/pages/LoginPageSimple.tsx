@@ -1,12 +1,14 @@
 /**
- * LoginPageSimple - Version đơn giản để debug UI issues
+ * LoginPageSimple - Version thật sự với API calls và logging
  */
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPageSimple: React.FC = () => {
   const navigate = useNavigate();
+  const { login, loading, error } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -14,9 +16,25 @@ export const LoginPageSimple: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login attempt:', formData);
-    // For now just navigate to dashboard
-    navigate('/dashboard');
+    
+    console.log('🚀 [Frontend] Login form submitted');
+    console.log('📧 [Frontend] Email:', formData.email);
+    console.log('🔐 [Frontend] Password length:', formData.password.length);
+    console.log('🌐 [Frontend] API Base URL:', (import.meta as any).env?.VITE_API_BASE_URL || 'undefined');
+    
+    try {
+      console.log('📨 [Frontend] Calling login API...');
+      await login({
+        username: formData.email, 
+        password: formData.password
+      });
+      
+      console.log('✅ [Frontend] Login successful, navigating to dashboard...');
+      navigate('/dashboard');
+      
+    } catch (error) {
+      console.error('❌ [Frontend] Login error:', error);
+    }
   };
 
   return (
@@ -56,6 +74,20 @@ export const LoginPageSimple: React.FC = () => {
           Chào mừng bạn quay lại với AI Code Reviewer
         </p>
 
+        {error && (
+          <div style={{
+            marginBottom: '1rem',
+            padding: '0.75rem',
+            backgroundColor: '#fee2e2',
+            borderRadius: '8px',
+            border: '1px solid #fecaca',
+            color: '#b91c1c',
+            fontSize: '14px'
+          }}>
+            ❌ {error.detail}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1rem' }}>
             <label style={{
@@ -83,6 +115,7 @@ export const LoginPageSimple: React.FC = () => {
                 boxSizing: 'border-box'
               }}
               required
+              disabled={loading}
             />
           </div>
 
@@ -112,27 +145,33 @@ export const LoginPageSimple: React.FC = () => {
                 boxSizing: 'border-box'
               }}
               required
+              disabled={loading}
             />
           </div>
 
           <button
             type="submit"
+            disabled={loading}
             style={{
               width: '100%',
               height: '48px',
-              backgroundColor: '#2563eb',
+              backgroundColor: loading ? '#9ca3af' : '#2563eb',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'background-color 0.2s'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+            onMouseEnter={(e) => {
+              if (!loading) e.currentTarget.style.backgroundColor = '#1d4ed8';
+            }}
+            onMouseLeave={(e) => {
+              if (!loading) e.currentTarget.style.backgroundColor = '#2563eb';
+            }}
           >
-            Đăng nhập
+            {loading ? '⏳ Đang đăng nhập...' : 'Đăng nhập'}
           </button>
         </form>
 
@@ -168,7 +207,10 @@ export const LoginPageSimple: React.FC = () => {
         }}>
           <strong>Debug Info:</strong><br/>
           Email: {formData.email}<br/>
-          Password: {formData.password ? '••••••••' : '(empty)'}
+          Password: {formData.password ? '••••••••' : '(empty)'}<br/>
+          Loading: {loading ? 'Yes' : 'No'}<br/>
+          Error: {error?.detail || 'None'}<br/>
+          API URL: {(import.meta as any).env?.VITE_API_BASE_URL || 'undefined'}
         </div>
       </div>
     </div>

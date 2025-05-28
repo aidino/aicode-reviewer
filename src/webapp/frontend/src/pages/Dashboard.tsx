@@ -540,7 +540,7 @@ const Dashboard: React.FC = () => {
 
           {/* Statistics Cards */}
           <motion.div 
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -594,23 +594,28 @@ const Dashboard: React.FC = () => {
             />
           </motion.div>
 
+          {/* Spacer để tạo khoảng cách */}
+          <div className="h-8 w-full"></div>
+
           {/* Repositories List */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
+            className="pt-8"
           >
-            <div className="card-soft">
+            <div className="bg-transparent shadow-none rounded-xl overflow-hidden" style={{ border: 'none' }}>
               <div className="card-soft-header flex justify-between items-center">
                 <h4 className="text-lg font-semibold text-gray-900">📁 Repositories</h4>
                 <span className="text-sm text-gray-500">{repositories.length} repositories</span>
               </div>
               <div className="card-soft-body">
-                <div className="space-y-4">
+                <div className="">
                   {repositories.map(repo => (
                     <motion.div 
                       key={repo.id} 
                       className="flex items-center justify-between p-6 border border-gray-100 rounded-xl hover:border-gray-200 hover:shadow-lg transition-all duration-300 bg-white/50"
+                      style={{ marginBottom: '10px' }}
                       whileHover={{ y: -2 }}
                     >
                       <div className="flex-1 min-w-0">
