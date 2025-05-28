@@ -12,6 +12,7 @@ class Neo4jSettings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"  # Ignore extra fields from .env file
 
 class Neo4jClient:
     def __init__(self, settings: Optional[Neo4jSettings] = None):

@@ -11,7 +11,17 @@ import {
   ScanResponse,
   ScanStatus,
   ApiResponse,
-  ApiError
+  ApiError,
+  // Authentication types
+  LoginRequest,
+  RegisterRequest,
+  LoginResponse,
+  User,
+  UserSession,
+  RefreshTokenRequest,
+  AuthTokens,
+  ChangePasswordRequest,
+  UpdateProfileRequest
 } from '../types';
 
 // API configuration
@@ -19,9 +29,37 @@ const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '';
 
 class ApiService {
   private baseUrl: string;
+  private authToken: string | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    // Khôi phục token từ localStorage khi khởi tạo
+    this.authToken = localStorage.getItem('access_token');
+  }
+
+  /**
+   * Set authorization token for API requests.
+   * 
+   * Args:
+   *   token: JWT access token
+   */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+    if (token) {
+      localStorage.setItem('access_token', token);
+    } else {
+      localStorage.removeItem('access_token');
+    }
+  }
+
+  /**
+   * Get authorization token.
+   * 
+   * Returns:
+   *   string | null: Current access token
+   */
+  getAuthToken(): string | null {
+    return this.authToken;
   }
 
   /**
@@ -41,14 +79,21 @@ class ApiService {
     try {
       const url = `${this.baseUrl}${endpoint}`;
       
-      const defaultHeaders = {
+      const defaultHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers,
       };
+
+      // Thêm Authorization header nếu có token
+      if (this.authToken) {
+        defaultHeaders['Authorization'] = `Bearer ${this.authToken}`;
+      }
 
       const response = await fetch(url, {
         ...options,
-        headers: defaultHeaders,
+        headers: {
+          ...defaultHeaders,
+          ...options.headers,
+        },
       });
 
       if (!response.ok) {
@@ -195,6 +240,150 @@ class ApiService {
    */
   async checkHealth(): Promise<ApiResponse<{ status: string; service: string }>> {
     return this.fetchWithErrorHandling('/health');
+  }
+
+  // Authentication Methods
+
+  /**
+   * User login.
+   * 
+   * Args:
+   *   credentials: Login credentials
+   * 
+   * Returns:
+   *   Promise<ApiResponse<LoginResponse>>: Login response with user and tokens
+   */
+  async login(credentials: LoginRequest): Promise<ApiResponse<LoginResponse>> {
+    return this.fetchWithErrorHandling<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username_or_email: credentials.username,
+        password: credentials.password,
+      }),
+    });
+  }
+
+  /**
+   * User registration.
+   * 
+   * Args:
+   *   userData: Registration data
+   * 
+   * Returns:
+   *   Promise<ApiResponse<LoginResponse>>: Registration response with user and tokens
+   */
+  async register(userData: RegisterRequest): Promise<ApiResponse<LoginResponse>> {
+    return this.fetchWithErrorHandling<LoginResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  /**
+   * User logout.
+   * 
+   * Returns:
+   *   Promise<ApiResponse<{message: string}>>: Logout response
+   */
+  async logout(): Promise<ApiResponse<{ message: string }>> {
+    return this.fetchWithErrorHandling<{ message: string }>('/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Get current user profile.
+   * 
+   * Returns:
+   *   Promise<ApiResponse<User>>: Current user data
+   */
+  async getCurrentUser(): Promise<ApiResponse<User>> {
+    return this.fetchWithErrorHandling<User>('/auth/me');
+  }
+
+  /**
+   * Update user profile.
+   * 
+   * Args:
+   *   updates: Profile updates
+   * 
+   * Returns:
+   *   Promise<ApiResponse<User>>: Updated user data
+   */
+  async updateProfile(updates: UpdateProfileRequest): Promise<ApiResponse<User>> {
+    return this.fetchWithErrorHandling<User>('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  /**
+   * Refresh access token.
+   * 
+   * Args:
+   *   refreshData: Refresh token data
+   * 
+   * Returns:
+   *   Promise<ApiResponse<AuthTokens>>: New tokens
+   */
+  async refreshToken(refreshData: RefreshTokenRequest): Promise<ApiResponse<AuthTokens>> {
+    return this.fetchWithErrorHandling<AuthTokens>('/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify(refreshData),
+    });
+  }
+
+  /**
+   * Change user password.
+   * 
+   * Args:
+   *   passwords: Current and new password
+   * 
+   * Returns:
+   *   Promise<ApiResponse<{message: string}>>: Password change response
+   */
+  async changePassword(passwords: ChangePasswordRequest): Promise<ApiResponse<{ message: string }>> {
+    return this.fetchWithErrorHandling<{ message: string }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(passwords),
+    });
+  }
+
+  /**
+   * Get user sessions.
+   * 
+   * Returns:
+   *   Promise<ApiResponse<UserSession[]>>: List of user sessions
+   */
+  async getUserSessions(): Promise<ApiResponse<UserSession[]>> {
+    return this.fetchWithErrorHandling<UserSession[]>('/auth/sessions');
+  }
+
+  /**
+   * Revoke a specific session.
+   * 
+   * Args:
+   *   sessionId: Session ID to revoke
+   * 
+   * Returns:
+   *   Promise<ApiResponse<{message: string}>>: Revoke response
+   */
+  async revokeSession(sessionId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.fetchWithErrorHandling<{ message: string }>(`/auth/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /**
+   * Revoke all sessions except current.
+   * 
+   * Returns:
+   *   Promise<ApiResponse<{message: string}>>: Revoke response
+   */
+  async revokeAllSessions(): Promise<ApiResponse<{ message: string }>> {
+    return this.fetchWithErrorHandling<{ message: string }>('/auth/sessions', {
+      method: 'DELETE',
+    });
   }
 }
 

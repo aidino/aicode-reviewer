@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Login Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+        .debug-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .debug-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug-container">
+        <h1>Login Page Debug</h1>
+        
+        <div class="debug-section">
+            <h2>Các bước để kiểm tra lỗi:</h2>
+            <ol>
+                <li>Mở trang <strong>http://localhost:5174/login</strong> trong browser</li>
+                <li>Mở Developer Tools (F12)</li>
+                <li>Kiểm tra tab Console xem có lỗi JavaScript không</li>
+                <li>Kiểm tra tab Network xem có resource nào fail load không</li>
+                <li>Kiểm tra tab Elements xem DOM có được render không</li>
+            </ol>
+        </div>
+        
+        <div class="debug-section">
+            <h2>Nguyên nhân có thể:</h2>
+            <ul>
+                <li><strong>JavaScript Error:</strong> Component crash khi render</li>
+                <li><strong>CSS Loading Issues:</strong> Stylesheet không load được</li>
+                <li><strong>Import/Export Errors:</strong> Module không tìm thấy</li>
+                <li><strong>AuthContext Issues:</strong> Context provider chưa setup đúng</li>
+                <li><strong>Router Issues:</strong> Routing configuration sai</li>
+            </ul>
+        </div>
+        
+        <div class="debug-section">
+            <h2>Test Links:</h2>
+            <p><a href="http://localhost:5174" target="_blank">Home Page</a></p>
+            <p><a href="http://localhost:5174/login" target="_blank">Login Page (Test Version)</a></p>
+            <p><a href="http://localhost:5174/dashboard" target="_blank">Dashboard</a></p>
+        </div>
+    </div>
+</body>
+</html> 

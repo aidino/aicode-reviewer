@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Login UI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f8fafc;
+        }
+        .test-container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+        input {
+            width: 100%;
+            height: 48px;
+            padding: 0 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .original-style {
+            background: #f3f4f6;
+        }
+        .clean-style {
+            background: white;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: #1f2937;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .debug-info {
+            background: #eff6ff;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #3b82f6;
+        }
+        .debug-info h4 {
+            color: #1e40af;
+            margin-bottom: 0.5rem;
+        }
+        .debug-info p {
+            color: #1e40af;
+            font-size: 14px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center; margin-bottom: 2rem;">🔍 Debug Login UI Issue</h1>
+    
+    <div class="test-container">
+        <h2>Test Form Layout</h2>
+        
+        <form>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    placeholder="Nhập email của bạn"
+                    value=""
+                />
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Mật khẩu</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    placeholder="Nhập mật khẩu"
+                    value=""
+                />
+            </div>
+            
+            <button type="button" style="
+                width: 100%;
+                height: 48px;
+                background: #2563eb;
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+            ">
+                Đăng nhập
+            </button>
+        </form>
+        
+        <div class="debug-info">
+            <h4>🔍 Debugging Info:</h4>
+            <p><strong>Character encoding:</strong> UTF-8</p>
+            <p><strong>Font family:</strong> Arial, sans-serif</p>
+            <p><strong>Input height:</strong> 48px</p>
+            <p><strong>Border:</strong> 2px solid #e5e7eb</p>
+            <p><strong>Padding:</strong> 0 16px</p>
+        </div>
+    </div>
+
+    <div style="max-width: 600px; margin: 2rem auto;">
+        <h3>Character Display Test:</h3>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center;">
+            <div style="padding: 1rem; background: white; border: 1px solid #ddd;">
+                <strong>Normal @</strong><br>
+                <span style="font-size: 24px;">@</span>
+            </div>
+            <div style="padding: 1rem; background: white; border: 1px solid #ddd;">
+                <strong>Large @</strong><br>
+                <span style="font-size: 48px;">@</span>
+            </div>
+            <div style="padding: 1rem; background: white; border: 1px solid #ddd;">
+                <strong>HTML Entity</strong><br>
+                <span style="font-size: 24px;">&#64;</span>
+            </div>
+            <div style="padding: 1rem; background: white; border: 1px solid #ddd;">
+                <strong>Unicode</strong><br>
+                <span style="font-size: 24px;">\\u0040</span>
+            </div>
+        </div>
+    </div>
+
+    <div style="max-width: 600px; margin: 2rem auto; background: white; padding: 2rem; border-radius: 12px;">
+        <h3>Instructions:</h3>
+        <ol style="color: #1f2937; line-height: 1.6;">
+            <li><strong>Open React App:</strong> Go to <a href="http://localhost:5173/login" target="_blank">http://localhost:5173/login</a></li>
+            <li><strong>Compare Forms:</strong> Compare this test form with the React login form</li>
+            <li><strong>Check Character Display:</strong> See if @ symbols display differently</li>
+            <li><strong>Browser DevTools:</strong> Press F12 → Elements → Look for unusual CSS or large @ characters</li>
+            <li><strong>Network Tab:</strong> Check if any font files or CSS are failing to load</li>
+            <li><strong>Console:</strong> Look for JavaScript errors or warnings</li>
+        </ol>
+    </div>
+
+    <script>
+        // Log some debug info
+        console.log('Test page loaded');
+        console.log('Current encoding:', document.characterSet);
+        console.log('@ character code:', '@'.charCodeAt(0));
+        
+        // Test character rendering
+        window.onload = function() {
+            console.log('Page fully loaded');
+            
+            // Check if any elements contain large @ symbols
+            const allElements = document.querySelectorAll('*');
+            let foundLargeAt = false;
+            
+            allElements.forEach(el => {
+                const text = el.textContent;
+                if (text && text.includes('@')) {
+                    const styles = window.getComputedStyle(el);
+                    const fontSize = parseFloat(styles.fontSize);
+                    
+                    if (fontSize > 30) {
+                        console.warn('Found large @ symbol:', el, 'Font size:', fontSize);
+                        foundLargeAt = true;
+                    }
+                }
+            });
+            
+            if (!foundLargeAt) {
+                console.log('No large @ symbols found on this page');
+            }
+        };
+    </script>
+</body>
+</html> 

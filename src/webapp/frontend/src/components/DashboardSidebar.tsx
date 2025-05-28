@@ -9,9 +9,12 @@ import {
   FileText,
   TrendingUp,
   Shield,
-  Zap
+  Zap,
+  User,
+  LogOut
 } from 'lucide-react';
 import { useSidebar } from '../contexts/SidebarContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface SidebarProps {
   className?: string;
@@ -34,6 +37,7 @@ interface NavItem {
 
 const DashboardSidebar: React.FC<SidebarProps> = ({ className = '', healthData }) => {
   const { isCollapsed, toggleSidebar } = useSidebar();
+  const { user, logout } = useAuth();
 
   const navigationItems: NavItem[] = [
     {
@@ -76,11 +80,25 @@ const DashboardSidebar: React.FC<SidebarProps> = ({ className = '', healthData }
 
   const settingsItems: NavItem[] = [
     {
+      id: 'profile',
+      label: 'Hồ sơ',
+      icon: <User size={20} />,
+      href: '/profile',
+      color: 'var(--soft-info)'
+    },
+    {
       id: 'settings',
       label: 'Cài đặt',
       icon: <Settings size={20} />,
       href: '/settings',
       color: '#6b7280'
+    },
+    {
+      id: 'logout',
+      label: 'Đăng xuất',
+      icon: <LogOut size={20} />,
+      onClick: logout,
+      color: 'var(--soft-danger)'
     }
   ];
 
@@ -234,6 +252,25 @@ const DashboardSidebar: React.FC<SidebarProps> = ({ className = '', healthData }
           transition={{ delay: 0.8 }}
         >
           <div className="footer-info">
+            {/* User Information */}
+            {user && (
+              <div className="footer-user">
+                <div className="flex items-center gap-3 mb-3 p-3 bg-white/50 rounded-xl border border-gray-200/50">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                    {user.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">
+                      {user.profile?.full_name || user.username}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {user.email}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* System Health */}
             {healthData && (
               <div className="footer-health">

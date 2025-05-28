@@ -16,12 +16,18 @@ import TestPage from './pages/TestPage';
 import Dashboard from './pages/Dashboard';
 import AgentWorkflowPage from './pages/AgentWorkflowPage';
 import AgentWorkflowDemo from './pages/AgentWorkflowDemo';
+import { LoginPageBackup } from './pages/LoginPageBackup';
+// import { LoginPage } from './pages/LoginPage';
+import { LoginPageSimple } from './pages/LoginPageSimple';
+import { RegisterPageSimple } from './pages/RegisterPageSimple';
 import SoftUIDashboard from './components/SoftUIDashboard';
 import RepositoryManagement from './pages/RepositoryManagement';
 import Layout from './components/Layout';
 import { ThemeProvider } from './components/ThemeProvider';
 import { ToastProvider } from './components/Toast';
 import { SidebarProvider } from './contexts/SidebarContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { ProtectedRoute, UserProfile, AuthModal } from './components/auth';
 import './styles/theme.css';
 import './styles/components.css';
 import './styles/globals.css';
@@ -116,94 +122,175 @@ const App: React.FC<AppProps> = ({ className = '' }) => {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <SidebarProvider>
-          <div className={`app ${className}`}>
-            <Router>
-            <Routes>
-              {/* Home route - redirects to dashboard */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <AuthProvider>
+          <SidebarProvider>
+            <div className={`app ${className}`}>
+              <Router>
+                <Routes>
+                  {/* Home route - redirects to dashboard */}
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  
+                  {/* Dashboard route - Protected */}
+                  <Route 
+                    path="/dashboard" 
+                    element={
+                      <ProtectedRoute>
+                        <Dashboard />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* User Profile route - Protected */}
+                  <Route 
+                    path="/profile" 
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <UserProfile />
+                        </Layout>
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Repository Management routes - Protected */}
+                  <Route 
+                    path="/repositories/new" 
+                    element={
+                      <ProtectedRoute>
+                        <RepositoryManagement />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/repositories/:id" 
+                    element={
+                      <ProtectedRoute>
+                        <RepositoryManagement />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/repositories/:id/edit" 
+                    element={
+                      <ProtectedRoute>
+                        <RepositoryManagement />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Soft UI Dashboard demo route (without sidebar) */}
+                  <Route 
+                    path="/soft-ui" 
+                    element={
+                      <Layout showFloatingButton={false}>
+                        <SoftUIDashboard />
+                      </Layout>
+                    }
+                  />
+                  
+                  {/* Test page for debugging */}
+                  <Route 
+                    path="/test" 
+                    element={
+                      <Layout>
+                        <TestPage />
+                      </Layout>
+                    } 
+                  />
+                  
+                  {/* Scans list route - Protected */}
+                  <Route 
+                    path="/scans" 
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <ScanList />
+                        </Layout>
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Create scan route - Protected */}
+                  <Route 
+                    path="/create-scan" 
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <CreateScan />
+                        </Layout>
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Report view route - Protected */}
+                  <Route 
+                    path="/reports/:scanId" 
+                    element={
+                      <ProtectedRoute>
+                        <Layout>
+                          <ReportView />
+                        </Layout>
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Agent Workflow Visualization routes - Protected */}
+                  <Route 
+                    path="/workflow/:scanId" 
+                    element={
+                      <ProtectedRoute>
+                        <AgentWorkflowPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/workflow" 
+                    element={
+                      <ProtectedRoute>
+                        <AgentWorkflowPage />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/workflow-demo" 
+                    element={
+                      <ProtectedRoute>
+                        <AgentWorkflowDemo />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Legacy route support */}
+                  <Route path="/report/:scanId" element={<Navigate to="/reports/:scanId" replace />} />
+                  
+                  {/* Test route for debugging */}
+                  <Route 
+                    path="/debug" 
+                    element={<div style={{padding: '50px', fontSize: '24px', textAlign: 'center'}}>🧪 Debug Route Working!</div>} 
+                  />
+                  
+                  {/* Login route - Public */}
+                  <Route 
+                    path="/login" 
+                    element={<LoginPageSimple />} 
+                  />
+                  
+                  {/* Register route - Public */}
+                  <Route 
+                    path="/register" 
+                    element={<RegisterPageSimple />} 
+                  />
+                  
+                  {/* Not found route */}
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </Router>
               
-              {/* Dashboard route */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              
-              {/* Repository Management routes */}
-              <Route path="/repositories/new" element={<RepositoryManagement />} />
-              <Route path="/repositories/:id" element={<RepositoryManagement />} />
-              <Route path="/repositories/:id/edit" element={<RepositoryManagement />} />
-              
-              {/* Soft UI Dashboard demo route (without sidebar) */}
-              <Route 
-                path="/soft-ui" 
-                element={
-                  <Layout showFloatingButton={false}>
-                    <SoftUIDashboard />
-                  </Layout>
-                }
-              />
-              
-              {/* Test page for debugging */}
-              <Route 
-                path="/test" 
-                element={
-                  <Layout>
-                    <TestPage />
-                  </Layout>
-                } 
-              />
-              
-              {/* Scans list route */}
-              <Route 
-                path="/scans" 
-                element={
-                  <Layout>
-                    <ScanList />
-                  </Layout>
-                } 
-              />
-              
-              {/* Create scan route */}
-              <Route 
-                path="/create-scan" 
-                element={
-                  <Layout>
-                    <CreateScan />
-                  </Layout>
-                } 
-              />
-              
-              {/* Report view route */}
-              <Route 
-                path="/reports/:scanId" 
-                element={
-                  <Layout>
-                    <ReportView />
-                  </Layout>
-                } 
-              />
-              
-              {/* Agent Workflow Visualization routes */}
-              <Route 
-                path="/workflow/:scanId" 
-                element={<AgentWorkflowPage />} 
-              />
-              <Route 
-                path="/workflow" 
-                element={<AgentWorkflowPage />} 
-              />
-              <Route 
-                path="/workflow-demo" 
-                element={<AgentWorkflowDemo />} 
-              />
-              
-              {/* Legacy route support */}
-              <Route path="/report/:scanId" element={<Navigate to="/reports/:scanId" replace />} />
-              
-              {/* Not found route */}
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Router>
-        </div>
-        </SidebarProvider>
+              {/* Authentication Modal */}
+              <AuthModal />
+            </div>
+          </SidebarProvider>
+        </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
   );

@@ -41,6 +41,14 @@ from .dashboard_models import (
     DashboardQuery,
 )
 
+from .auth_models import (
+    Base,
+    UserRole,
+    User,
+    UserProfile,
+    UserSession,
+)
+
 __all__ = [
     # Scan models
     "ScanType",
@@ -79,4 +87,11 @@ __all__ = [
     "SystemHealth",
     "DashboardSummary",
     "DashboardQuery",
+    
+    # Auth models
+    "Base",
+    "UserRole",
+    "User",
+    "UserProfile",
+    "UserSession",
 ] 

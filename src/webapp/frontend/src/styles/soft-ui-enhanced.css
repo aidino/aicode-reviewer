@@ -16,7 +16,7 @@
   
   /* Soft UI Gradients */
   --soft-gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --soft-gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --soft-gradient-secondary: linear-gradient(135deg, #10b981 0%, #2563eb 100%);
   --soft-gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   --soft-gradient-warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
   --soft-gradient-info: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
@@ -24,7 +24,7 @@
   
   /* Soft UI Shadows */
   --soft-shadow-primary: 0 4px 20px 0 rgba(26, 35, 126, 0.14), 0 7px 10px -5px rgba(26, 35, 126, 0.4);
-  --soft-shadow-secondary: 0 4px 20px 0 rgba(41, 121, 255, 0.14), 0 7px 10px -5px rgba(41, 121, 255, 0.4);
+  --soft-shadow-secondary: 0 4px 20px 0 rgba(16, 185, 129, 0.14), 0 7px 10px -5px rgba(16, 185, 129, 0.4);
   --soft-shadow-success: 0 4px 20px 0 rgba(0, 200, 83, 0.14), 0 7px 10px -5px rgba(0, 200, 83, 0.4);
   --soft-shadow-warning: 0 4px 20px 0 rgba(255, 145, 0, 0.14), 0 7px 10px -5px rgba(255, 145, 0, 0.4);
   --soft-shadow-danger: 0 4px 20px 0 rgba(255, 82, 82, 0.14), 0 7px 10px -5px rgba(255, 82, 82, 0.4);
@@ -40,7 +40,7 @@
 
 [data-theme="dark"] {
   --soft-gradient-primary: linear-gradient(135deg, #4c63d2 0%, #5a67d8 100%);
-  --soft-gradient-secondary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --soft-gradient-secondary: linear-gradient(135deg, #047857 0%, #1d4ed8 100%);
   --soft-gradient-success: linear-gradient(135deg, #38a169 0%, #48bb78 100%);
   --soft-gradient-warning: linear-gradient(135deg, #ed8936 0%, #f6ad55 100%);
   --soft-gradient-info: linear-gradient(135deg, #3182ce 0%, #63b3ed 100%);
@@ -116,7 +116,7 @@
 }
 
 .btn-soft-secondary:hover {
-  box-shadow: 0 7px 14px rgba(41, 121, 255, 0.18), 0 5px 15px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 7px 14px rgba(16, 185, 129, 0.18), 0 5px 15px rgba(0, 0, 0, 0.15);
   transform: translateY(-1px);
 }
 

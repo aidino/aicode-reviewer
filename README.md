@@ -20,6 +20,7 @@ The core mission is to significantly improve code quality, enhance developer pro
 * **Real-time Scan Processing:** Async scan initiation with progress tracking and task management.
 * **On-Demand Scanning:** Allows users (developers, tech leads) to initiate scans for specific PRs (open or closed) or entire projects as needed.  
 * **Comprehensive Reporting:** Produces detailed reports with interactive visualization, filtering, and export capabilities.
+* **Enterprise Authentication System:** Complete JWT-based authentication with user management, role-based access control, session management, rate limiting, and comprehensive security headers.
 * **Standalone & Self-Hosted:** Designed to operate as an independent tool, self-hosted by the user to ensure data privacy and control over proprietary code.  
 * **Open Source Prioritization:** Built with a strong preference for open-source technologies and components.
 * **Change Impact Analysis:** Phân tích tác động của thay đổi mã nguồn (ImpactAnalysisAgent) giúp xác định các file, class, function bị ảnh hưởng trực tiếp/gián tiếp bởi diff hoặc PR, hỗ trợ đánh giá rủi ro lan truyền và ưu tiên review.
@@ -52,6 +53,47 @@ The system now features an **advanced Enhanced Solution Suggestion Agent** with 
 - **Memory Management**: Optimized for large codebases and complex analysis
 - **Comprehensive Testing**: 39 test cases covering normal operations, edge cases, and error scenarios
 
+### **🔐 Enterprise Authentication System**
+
+The system includes a comprehensive, production-ready authentication system with enterprise-grade security features:
+
+#### **Core Authentication Features**
+- **JWT-Based Authentication**: Secure token-based authentication with access and refresh tokens
+- **User Management**: Complete user registration, login, logout, and profile management
+- **Role-Based Access Control**: Support for ADMIN, USER, and GUEST roles with granular permissions
+- **Session Management**: Advanced session tracking with device information and IP logging
+- **Password Security**: Bcrypt hashing with configurable complexity and strength validation
+
+#### **Security Enhancements**
+- **Rate Limiting**: Intelligent rate limiting to prevent brute force attacks on auth endpoints
+- **Token Blacklisting**: Comprehensive token invalidation and session revocation
+- **Security Headers**: Full suite of security headers (HSTS, CSP, X-Frame-Options, etc.)
+- **CORS Configuration**: Configurable CORS policies for development and production environments
+- **Input Validation**: Comprehensive request validation with Pydantic schemas
+
+#### **Advanced Features**
+- **Multi-Session Support**: Users can manage multiple active sessions across devices
+- **Session Analytics**: Track login history, device information, and session activity
+- **Automatic Cleanup**: Intelligent cleanup of expired sessions and tokens
+- **Development/Production Modes**: Separate security configurations for different environments
+
+#### **API Endpoints**
+- `POST /auth/register` - User registration with validation
+- `POST /auth/login` - User authentication with device tracking
+- `POST /auth/logout` - Secure logout with token blacklisting
+- `GET /auth/me` - Get current user profile
+- `PUT /auth/me` - Update user profile
+- `POST /auth/refresh` - Refresh access tokens
+- `POST /auth/change-password` - Secure password changes
+- `GET /auth/sessions` - List user sessions
+- `DELETE /auth/sessions/{id}` - Revoke specific sessions
+
+#### **Testing & Reliability**
+- **Comprehensive Test Suite**: 60+ test cases covering all authentication scenarios
+- **High Test Coverage**: 95%+ coverage on authentication utilities and models
+- **Edge Case Handling**: Robust error handling for network issues, invalid tokens, and edge cases
+- **Performance Testing**: Rate limiting and concurrent session testing
+
 ## **Strategic Value**
 
 This system moves beyond traditional linters and basic static analysis tools by:
@@ -76,8 +118,19 @@ aicode-reviewer/
 │   ├── webapp/                   # Web application
 │   │   ├── backend/              # FastAPI backend
 │   │   │   ├── api/              # API routes and endpoints
+│   │   │   ├── auth/             # Authentication system
+│   │   │   │   ├── models.py     # User, UserProfile, UserSession models
+│   │   │   │   ├── utils.py      # JWT utilities, password hashing
+│   │   │   │   ├── service.py    # Authentication business logic
+│   │   │   │   ├── middleware.py # Auth middleware and decorators
+│   │   │   │   ├── routes.py     # Auth API endpoints
+│   │   │   │   ├── schemas.py    # Request/response schemas
+│   │   │   │   ├── rate_limiting.py # Rate limiting for auth endpoints
+│   │   │   │   └── security.py   # Security headers and CORS
 │   │   │   ├── models/           # Pydantic data models
-│   │   │   └── services/         # Business logic services
+│   │   │   ├── services/         # Business logic services
+│   │   │   ├── database.py       # Database configuration
+│   │   │   └── alembic/          # Database migrations
 │   │   └── frontend/             # React frontend
 │   │       ├── src/              # Frontend source code
 │   │       │   ├── components/   # React components
@@ -92,6 +145,10 @@ aicode-reviewer/
 ├── tests/                        # Unit tests mirroring src structure
 │   ├── core_engine/              # Core engine tests
 │   ├── webapp/backend/           # Backend API tests
+│   │   ├── test_auth_models.py   # Authentication models tests
+│   │   ├── test_auth_utils.py    # Authentication utilities tests
+│   │   ├── test_auth_routes.py   # Authentication API tests
+│   │   └── test_rate_limiting.py # Rate limiting tests
 │   └── webapp/frontend/          # Frontend component tests
 ├── scripts/                      # Demo and utility scripts
 ├── docs/                         # Documentation (PLANNING.md, TASK.md)
@@ -109,9 +166,63 @@ aicode-reviewer/
 - **Git**: Repository interaction
 - **Optional**: CUDA-compatible GPU for local LLM inference
 
-### **Quick Start**
+### **Quick Start với Docker (Recommended)**
 
-1. **Clone the repository:**
+🎯 **Khởi chạy nhanh toàn bộ hệ thống:**
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd aicode-reviewer
+
+# 2. Start development environment (all-in-one)
+./scripts/aicode-reviewer dev
+```
+
+Lệnh này sẽ:
+- ✅ Khởi chạy tất cả services (Frontend, Backend, PostgreSQL, Neo4j, Redis)
+- ✅ Tự động tạo environment file (.env)
+- ✅ Khởi tạo databases với sample data
+- ✅ Setup admin user (admin/secret)
+
+🌐 **Truy cập ứng dụng:**
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:8000
+- **API Docs:** http://localhost:8000/docs
+- **Neo4j Browser:** http://localhost:7474
+
+### **Scripts Quản lý Hệ thống**
+
+Tất cả các thao tác quản lý hệ thống thông qua script `aicode-reviewer`:
+
+```bash
+# Service Management
+./scripts/aicode-reviewer start                    # Start all services
+./scripts/aicode-reviewer stop                     # Stop all services
+./scripts/aicode-reviewer restart --build          # Restart with fresh build
+./scripts/aicode-reviewer status                   # Show service status
+./scripts/aicode-reviewer logs                     # View all logs
+./scripts/aicode-reviewer logs backend             # View specific service logs
+
+# Database Management
+./scripts/aicode-reviewer init-db                  # Initialize databases
+./scripts/aicode-reviewer reset-db                 # Reset all data (WARNING!)
+
+# Development & Testing
+./scripts/aicode-reviewer test                     # Run all tests
+./scripts/aicode-reviewer test auth                # Run auth tests only
+./scripts/aicode-reviewer build                    # Build Docker images
+./scripts/aicode-reviewer clean                    # Clean Docker resources
+
+# Complete cleanup
+./scripts/aicode-reviewer stop --all               # Stop + remove volumes
+```
+
+📚 **Chi tiết:** Xem [scripts/README.md](scripts/README.md) để hiểu đầy đủ về các scripts.
+
+### **Manual Setup (Nếu không dùng Docker)**
+
+1. **Clone repository:**
    ```bash
    git clone <repository-url>
    cd aicode-reviewer
@@ -163,10 +274,14 @@ aicode-reviewer/
 #### Backend Dependencies
 - **LangChain & LangGraph**: Multi-agent orchestration framework
 - **FastAPI**: Web API framework with automatic OpenAPI documentation
+- **SQLAlchemy**: Modern ORM with async support for database operations
+- **Alembic**: Database migration management
+- **PostgreSQL/SQLite**: Primary database (PostgreSQL) with SQLite for testing
+- **JWT & Security**: PyJWT, python-jose, passlib for authentication and security
 - **Tree-sitter**: AST parsing for multiple programming languages (Python, Java, Kotlin)
 - **GitPython**: Git repository interaction
 - **Radon**: Code complexity metrics calculation
-- **pytest**: Testing framework with async support
+- **pytest**: Testing framework with async support and comprehensive coverage
 
 #### Frontend Dependencies
 - **React 18**: Modern React with concurrent features

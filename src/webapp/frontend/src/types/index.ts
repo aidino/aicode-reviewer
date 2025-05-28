@@ -158,4 +158,87 @@ export interface FeedbackDetail {
   suggestion_type?: string;
   timestamp: string;
   metadata?: Record<string, any>;
+}
+
+// Authentication Types
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  role: string;
+  profile?: UserProfile;
+}
+
+export interface UserProfile {
+  user_id: string;
+  full_name?: string;
+  avatar_url?: string;
+  timezone?: string;
+  preferences?: Record<string, any>;
+}
+
+export interface UserSession {
+  id: string;
+  user_id: string;
+  token_id: string;
+  created_at: string;
+  last_used_at: string;
+  is_active: boolean;
+  user_agent?: string;
+  ip_address?: string;
+}
+
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+  full_name?: string;
+}
+
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface LoginResponse {
+  user: User;
+  tokens: AuthTokens;
+}
+
+export interface RefreshTokenRequest {
+  refresh_token: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface UpdateProfileRequest {
+  full_name?: string;
+  avatar_url?: string;
+  timezone?: string;
+  preferences?: Record<string, any>;
+}
+
+export interface AuthContextValue {
+  user: User | null;
+  loading: boolean;
+  login: (credentials: LoginRequest) => Promise<void>;
+  register: (userData: RegisterRequest) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshToken: () => Promise<void>;
+  updateProfile: (updates: UpdateProfileRequest) => Promise<void>;
+  changePassword: (passwords: ChangePasswordRequest) => Promise<void>;
+  isAuthenticated: boolean;
 } 

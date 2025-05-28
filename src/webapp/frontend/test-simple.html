@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Test Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f8fafc; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Simple Test Page</h1>
+        
+        <div id="react-test">
+            <p>⏳ Loading React...</p>
+        </div>
+        
+        <div id="console-log" style="margin-top: 20px;">
+            <h3>🔍 Console Output:</h3>
+            <div id="log-output" style="background: #f1f1f1; padding: 10px; min-height: 100px; font-family: monospace;"></div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>🔗 Quick Tests:</h3>
+            <button onclick="testReact()" style="margin: 5px; padding: 8px 15px;">Test React</button>
+            <button onclick="testRouter()" style="margin: 5px; padding: 8px 15px;">Test Router</button>
+            <button onclick="testLogin()" style="margin: 5px; padding: 8px 15px;">Test Login Page</button>
+        </div>
+    </div>
+    
+    <script>
+        const logOutput = document.getElementById('log-output');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.innerHTML = `[${timestamp}] ${message}`;
+            div.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logOutput.appendChild(div);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+        
+        // Catch all errors
+        window.addEventListener('error', function(e) {
+            log(`❌ ERROR: ${e.message} (${e.filename}:${e.lineno})`, 'error');
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            log(`❌ PROMISE REJECTION: ${e.reason}`, 'error');
+        });
+        
+        function testReact() {
+            try {
+                if (typeof React !== 'undefined') {
+                    log('✅ React is loaded!', 'success');
+                } else {
+                    log('❌ React not found', 'error');
+                }
+            } catch (e) {
+                log(`❌ React test failed: ${e.message}`, 'error');
+            }
+        }
+        
+        function testRouter() {
+            try {
+                const path = window.location.pathname;
+                log(`Current path: ${path}`, 'info');
+                if (window.history) {
+                    log('✅ History API available', 'success');
+                } else {
+                    log('❌ History API not available', 'error');
+                }
+            } catch (e) {
+                log(`❌ Router test failed: ${e.message}`, 'error');
+            }
+        }
+        
+        function testLogin() {
+            try {
+                window.open('/login', '_blank');
+                log('🔗 Opened login page in new tab', 'info');
+            } catch (e) {
+                log(`❌ Failed to open login: ${e.message}`, 'error');
+            }
+        }
+        
+        // Auto-run basic tests
+        setTimeout(() => {
+            log('🚀 Starting automatic tests...', 'info');
+            testReact();
+            
+            // Check root element
+            const root = document.getElementById('root');
+            if (root) {
+                log('✅ Root element found in main page', 'success');
+            } else {
+                log('❌ Root element not found', 'error');
+            }
+            
+            // Test fetch to main page
+            fetch('/')
+                .then(response => {
+                    if (response.ok) {
+                        log('✅ Main page responds OK', 'success');
+                        return response.text();
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                })
+                .then(html => {
+                    if (html.includes('id="root"')) {
+                        log('✅ Main page has root element', 'success');
+                    } else {
+                        log('❌ Main page missing root element', 'error');
+                    }
+                })
+                .catch(e => {
+                    log(`❌ Main page test failed: ${e.message}`, 'error');
+                });
+                
+            // Test fetch to login page  
+            fetch('/login')
+                .then(response => {
+                    if (response.ok) {
+                        log('✅ Login page responds OK', 'success');
+                        return response.text();
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                })
+                .then(html => {
+                    if (html.includes('id="root"')) {
+                        log('✅ Login page has root element', 'success');
+                    } else {
+                        log('❌ Login page missing root element', 'error');
+                    }
+                })
+                .catch(e => {
+                    log(`❌ Login page test failed: ${e.message}`, 'error');
+                });
+        }, 1000);
+    </script>
+</body>
+</html> 
