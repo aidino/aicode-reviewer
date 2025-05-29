@@ -101,39 +101,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * Check if user is authenticated by verifying token and fetching user data.
    */
   const checkAuth = useCallback(async () => {
+    console.log('🔐 checkAuth: Starting auth check');
     const accessToken = apiService.getAuthToken();
+    console.log('🎫 checkAuth: Access token found:', !!accessToken);
     
     if (!accessToken) {
-      console.log('No access token found, setting loading to false');
+      console.log('❌ checkAuth: No access token found, setting loading to false');
       dispatch({ type: 'SET_LOADING', payload: false });
       return;
     }
 
     try {
-      console.log('Checking authentication with backend...');
+      console.log('🌐 checkAuth: Checking authentication with backend...');
       
-      // Add timeout to the API call
+      // Try to get current user with longer timeout
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Auth check timeout')), 3000);
+        setTimeout(() => reject(new Error('Auth check timeout')), 8000); // Increased timeout to 8 seconds
       });
       
       const apiPromise = apiService.getCurrentUser();
       const response = await Promise.race([apiPromise, timeoutPromise]);
       
       if (response.error) {
-        console.log('Auth check failed, trying token refresh...');
+        console.log('🔄 checkAuth: Auth check failed, trying token refresh...');
+        console.log('   Error:', response.error);
         // Token might be expired, try to refresh
         await handleTokenRefresh();
       } else {
-        console.log('Auth check successful');
+        console.log('✅ checkAuth: Auth check successful');
+        console.log('👤 checkAuth: User data:', response.data);
         dispatch({ type: 'SET_USER', payload: response.data! });
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('💥 checkAuth: Exception occurred:', error);
       if (error.message === 'Auth check timeout') {
-        console.warn('Auth check timed out, assuming no authentication');
+        console.warn('⏰ checkAuth: Auth check timed out, keeping existing state');
+        // Don't logout on timeout, just set loading to false
+        dispatch({ type: 'SET_LOADING', payload: false });
+      } else {
+        console.error('🚪 checkAuth: Logging out due to auth error');
+        // Only logout on actual auth errors, not timeouts
+        handleLogout();
       }
-      handleLogout();
     }
   }, []);
 
@@ -326,37 +335,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Initial auth check
   useEffect(() => {
-    // TEMPORARY: Skip auth check to avoid loading screen stuck
-    console.log('⚠️ Temporarily skipping auth check - setting loading to false immediately');
-    dispatch({ type: 'SET_LOADING', payload: false });
+    console.log('🚀 AuthContext useEffect: Starting initial auth check');
     
-    // Comment out the original auth check temporarily
-    /*
     let timeoutId: NodeJS.Timeout;
     
     const performAuthCheck = async () => {
       try {
+        console.log('🔍 AuthContext: Performing auth check...');
         await checkAuth();
+        console.log('✅ AuthContext: Auth check completed');
       } catch (error) {
-        console.error('Initial auth check failed:', error);
+        console.error('❌ AuthContext: Initial auth check failed:', error);
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
     
     // Set a timeout fallback
     timeoutId = setTimeout(() => {
-      console.warn('Auth check timeout - setting loading to false');
+      console.warn('⏰ AuthContext: Auth check timeout - setting loading to false');
       dispatch({ type: 'SET_LOADING', payload: false });
-    }, 5000); // 5 second timeout
+    }, 10000); // Increased to 10 seconds
     
     performAuthCheck().finally(() => {
+      console.log('🏁 AuthContext: Auth check finished, clearing timeout');
       clearTimeout(timeoutId);
     });
     
     return () => {
+      console.log('🧹 AuthContext: Cleanup timeout');
       clearTimeout(timeoutId);
     };
-    */
   }, [checkAuth]);
 
   const contextValue: AuthContextValue = {
