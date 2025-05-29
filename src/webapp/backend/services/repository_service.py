@@ -90,7 +90,7 @@ def add_repository_with_metadata(db: Session, repo_url: str, user_id: int, acces
     Thêm repository mới với smart caching và secure token storage.
     - Lưu PAT token được encrypt an toàn
     - Cache source code với intelligent sync
-    - Update metadata khi repository đã tồn tại
+    - Update metadata khi repository đã tồn tại cho user này
     """
     repo_url = str(repo_url)  # Đảm bảo luôn là string (fix lỗi HttpUrl)
     
@@ -100,13 +100,16 @@ def add_repository_with_metadata(db: Session, repo_url: str, user_id: int, acces
     token_manager = TokenManager()
     cache_service = RepositoryCacheService()
     
-    # Check if repository already exists
-    existing_project = db.query(Project).filter(Project.url == repo_url).first()
+    # Check if repository already exists FOR THIS USER
+    existing_project = db.query(Project).filter(
+        Project.url == repo_url,
+        Project.owner_id == user_id
+    ).first()
     
     repo_path = None
     try:
         if existing_project:
-            logger.info(f"📝 Repository already exists: {existing_project.name}")
+            logger.info(f"📝 Repository already exists for user {user_id}: {existing_project.name}")
             
             # Update/store token if provided
             if access_token:
@@ -123,7 +126,7 @@ def add_repository_with_metadata(db: Session, repo_url: str, user_id: int, acces
                 stored_token = token_manager.get_token(existing_project)
                 repo_path = clone_repository(repo_url, access_token=stored_token or access_token)
         else:
-            logger.info(f"➕ Adding new repository: {repo_name}")
+            logger.info(f"➕ Adding new repository for user {user_id}: {repo_name}")
             
             # For new repositories, use temporary clone first to get metadata
             repo_path = clone_repository(repo_url, access_token=access_token)
