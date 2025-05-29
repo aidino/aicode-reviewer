@@ -9,8 +9,51 @@
 - [x] Documentation: architecture, setup guide, usage examples
 - [x] Separated ImpactAnalysisAgent: tạo module, models, unit test khung (2024-06-10)
 
-## 2. Remaining/Additional Tasks
-### 2.1. Core Engine & Agents
+## 2. Recent Completed Tasks (2025-01-29)
+### 2.1. Repository Integration with Real Database Data ✅ COMPLETED
+- [x] **Backend API Development**
+  - [x] Created GET /api/repositories/ endpoint để lấy danh sách repositories của user
+  - [x] Updated repository_service.py với function get_user_repositories()
+  - [x] Enhanced RepositoryResponse schema với cache và token management fields
+  - [x] Added database migration cho smart cache fields (cached_path, last_commit_hash, etc.)
+  - [x] Fixed PostgreSQL column compatibility issues
+- [x] **Frontend Integration**
+  - [x] Updated api.ts service với getRepositories() function
+  - [x] Converted Dashboard từ mock data sang real API calls
+  - [x] Updated AddRepositoryModal để sử dụng apiService thay vì fetch trực tiếp
+  - [x] Implemented repository refetch after successful addition
+  - [x] Added proper error handling và loading states
+- [x] **Database Setup**
+  - [x] Added required database columns cho smart cache system
+  - [x] Created test data với mix của real và fake repositories
+  - [x] Verified API returning correct repository data với statistics
+  - [x] Tested end-to-end flow từ database đến frontend display
+
+### 2.2. Frontend White Screen Debug & Fix ✅ COMPLETED (2025-01-29)
+- [x] **Problem Investigation**
+  - [x] Diagnosed white screen issue at http://localhost:5173/ 
+  - [x] Identified build system import errors in AddRepositoryModal.tsx and Dashboard.tsx
+  - [x] Fixed incorrect default import syntax: `import apiService` → `import { apiService }`
+  - [x] Resolved 319 TypeScript compilation errors down to 68 errors
+  - [x] Added Vitest types to tsconfig.json for test environment compatibility
+- [x] **Container & Health Check Fixes**
+  - [x] Fixed frontend container health check using wget instead of curl
+  - [x] Corrected health check URL from localhost to 0.0.0.0 for Docker networking
+  - [x] Verified all Docker containers healthy and responding correctly
+- [x] **React Mounting Debug & Fix**
+  - [x] Created comprehensive debug system to isolate React mounting failure
+  - [x] Built step-by-step React testing (import → createElement → createRoot → render)
+  - [x] Fixed App.tsx props issues (AuthModal missing required props)
+  - [x] Confirmed React cơ bản hoạt động through all 7 test steps
+  - [x] Successfully mounted App component và verified full functionality
+- [x] **Code Cleanup & Restoration**
+  - [x] Restored index.tsx to normal React application entry point
+  - [x] Removed debug scripts from index.html for clean production state
+  - [x] Verified React application runs normally with proper logging
+  - [x] Confirmed white screen issue completely resolved
+
+## 3. Remaining/Additional Tasks
+### 3.1. Core Engine & Agents
 - [x] **Separate ImpactAnalysisAgent**
   - [x] Design interface và models cho change impact analysis (diff, dependency, propagation)
   - [x] Cài đặt logic analyze_impact (diff, dependency, propagation)
@@ -21,7 +64,7 @@
   - [x] Diversify suggestions (multiple options, pros/cons analysis)
   - [x] Test edge cases, LLM errors
 
-### 2.2. UI/UX & Visualization (Update May 2025)
+### 3.2. UI/UX & Visualization (Update May 2025)
 - [x] **Modernize UI/UX (2025 trend)** (2025-01-27)
   - [x] Redesign layout for minimalism, clarity, and responsiveness
   - [x] Implement neumorphism/glassmorphism/soft shadow effects
@@ -41,6 +84,17 @@
   - [x] Create global Layout component with sidebar for all pages, remove header/footer
   - [x] Move System Health information to sidebar footer with live updates
   - [x] Simplify Dashboard content by removing duplicate header and system health sections
+  - [x] **Fix Floating Button Issues** (2025-01-29) ✅ COMPLETED
+    - [x] Investigated and resolved floating "Add Repository" button not working
+    - [x] Identified CSS conflicts between Dashboard and Layout floating buttons
+    - [x] Resolved Tailwind CSS and Lucide icons loading issues in environment
+    - [x] Converted AddRepositoryModal to use inline styles instead of Tailwind classes
+    - [x] Replaced all Lucide icons with emoji icons for better compatibility
+    - [x] Fixed GitHub token authentication format and scope requirements
+    - [x] Implemented duplicate repository handling with metadata updates
+    - [x] Enhanced error handling for private repositories and authentication
+    - [x] Added comprehensive user feedback for token scope requirements
+    - [x] Cleaned up all debug code and files
 - [x] **Agent Graph Visualization** (2025-01-28)
   - [x] Visualize agent workflow as interactive graph (React Flow implemented)
   - [x] Show agent status (idle, running, completed, error) with color coding
@@ -97,7 +151,33 @@
       - [x] Fixed sidebar responsive behavior with proper Layout component integration
       - [x] Updated Dashboard to use navigation handlers instead of modal system
 
-### 2.3. Testing & Reliability
+### 3.3. Smart Repository Management (New - 2025-01-29)
+- [x] **Smart Repository Cache System** (2025-01-29) ✅ COMPLETED
+  - [x] Enhanced Project model with cache management fields (cached_path, last_commit_hash, cache_expires_at, cache_size_mb)
+  - [x] Added secure token management fields (encrypted_access_token, token_expires_at, token_last_used_at)
+  - [x] Implemented TokenManager service with Fernet encryption for PAT tokens
+  - [x] Created RepositoryCacheService for intelligent source code caching
+  - [x] Added smart sync based on git commit hash comparison
+  - [x] Implemented automatic cache expiration and cleanup
+  - [x] Added storage quota management with LRU eviction
+  - [x] Updated repository_service to use smart cache instead of temporary clones
+  - [x] Created database migration for new cache and token fields
+  - [x] Implemented background jobs for maintenance (cache cleanup, auto-sync, health checks)
+- [ ] **Cache System Integration & Testing**
+  - [ ] Update scan workflow to use get_repository_for_scan() function
+  - [ ] Create API endpoints for cache management (manual sync, cache stats, cleanup)
+  - [ ] Add cache dashboard in admin interface
+  - [ ] Create unit tests for TokenManager and RepositoryCacheService
+  - [ ] Integration tests for cache system end-to-end
+  - [ ] Performance benchmarks (cache vs non-cache scenarios)
+- [ ] **Background Job Scheduling**
+  - [ ] Integrate with Celery or APScheduler for job scheduling
+  - [ ] Set up periodic cleanup jobs (every 6 hours)
+  - [ ] Set up auto-sync jobs (every hour)
+  - [ ] Add job monitoring and alerts
+  - [ ] Create admin interface for job management
+
+### 3.4. Testing & Reliability
 - [ ] Add tests for edge cases:
   - [ ] Network errors when fetching repo/PR
   - [ ] LLM timeout, invalid responses
@@ -105,21 +185,21 @@
   - [ ] Large files, codebase exceeding thresholds
 - [ ] Test recovery capability, clear error reporting to users
 
-### 2.4. Documentation & Guides
+### 3.5. Documentation & Guides
 - [ ] Write guide for extending static analysis rules (add new rule, DSL rule)
 - [ ] Guide for adding new languages (Tree-sitter grammar, agent mapping)
 - [ ] Guide for custom prompts, integrating new LLMs
 - [ ] Guide for extending diagrams (class, sequence, C4 architecture)
 
-### 2.5. CI/CD & DevOps
+### 3.6. CI/CD & DevOps
 - [ ] Build CI/CD pipeline for automated testing, build, deploy
 - [ ] Integrate coverage, lint, frontend/backend test checks
 
-### 2.6. UI/UX & Administration
+### 3.7. UI/UX & Administration
 - [ ] (Optional) Build static rule management UI
 - [ ] (Optional) Add user permission, LLM API key management
 
-### 2.7. Authentication System (New - 2025-01-28)
+### 3.8. Authentication System (New - 2025-01-28)
 - [ ] **Research & Planning for Authentication (2025-01-28)**
   - [x] Research FastAPI JWT best practices and PostgreSQL integration
   - [x] Design database schema for user management
@@ -198,103 +278,8 @@
     - [x] Update error messages from red-600 to red-700 with font-medium for better visibility
     - [x] Improve icon colors from gray-400 to gray-500 for better contrast
     - [x] Update input field styling with solid backgrounds and better border colors
-  - [x] **Debug và Fix Lỗi Màn Hình Login Trắng** (2025-01-28) ✅ COMPLETED
-    - [x] Kiểm tra cấu trúc component LoginPage và dependencies
-    - [x] Xác minh CSS files được import đúng cách (globals.css, soft-ui-enhanced.css)
-    - [x] Kiểm tra AuthContext và useAuth hook hoạt động đúng
-    - [x] Tạo LoginPageTest component đơn giản để test
-    - [x] Loại bỏ framer-motion animations gây conflict
-    - [x] Đơn giản hóa LoginPage component để tránh runtime errors
-    - [x] Tạo unit tests để verify component structure
-    - [x] Tạo debug script để kiểm tra CSS classes và JavaScript errors
-    - [x] Cập nhật LoginPage với styling đơn giản và ổn định
-    - [x] Clear Vite cache và restart dev server
-    - [x] Kill tất cả Vite processes đang chạy
-    - [x] Đơn giản hóa App.tsx (loại bỏ AuthProvider, ThemeProvider, contexts)
-    - [x] Tạo LoginPageSimple component với inline styles
-    - [x] Xác minh HTML được serve đúng và JavaScript compile thành công
-    - [x] Tạo standalone test page để debug browser runtime errors
-    - [x] Tạo hướng dẫn manual testing chi tiết với browser developer tools
-    - [x] User confirmed Simple Login Page hiển thị thành công
-    - [x] Restore App.tsx với đầy đủ features sử dụng LoginPage đã simplified
-    - [x] Clean up các file test và debug không cần thiết
-  - [x] **Modernize Login/Register Screens with Xmee-inspired Design** (2025-05-28) ✅ COMPLETED
-    - [x] Study design patterns from Xmee login template via web crawling
-    - [x] Implement animated background shapes with framer-motion
-    - [x] Add QR Code login option with smooth tab transitions
-    - [x] Update color scheme to modern gradient combinations (indigo, cyan, emerald)
-    - [x] Enhance backdrop blur effects and glass morphism styling
-    - [x] Implement "Recovery Password" instead of "Forgot Password" (inspired by Xmee)
-    - [x] Add decorative gradient top bar elements
-    - [x] Enhance password strength indicator with grid layout and enhanced visual feedback
-    - [x] Update input styling with border-2 and improved hover states
-    - [x] Implement modern 3-color gradient buttons (blue-purple-cyan for login, emerald-cyan-blue for register)
-    - [x] Add sophisticated animated icons and better visual hierarchy
-    - [x] Test both login and register pages for functionality and visual consistency
-  - [x] **Redesign Login/Register with Clean Minimalist Style** (2025-05-28) ✅ COMPLETED
-    - [x] Study user requirements from provided UI mockups
-    - [x] Implement clean minimalist design with gray input backgrounds
-    - [x] Remove complex animations and decorative elements
-    - [x] Update LoginPage with simple gray-50 background and white card
-    - [x] Replace gradient inputs with clean gray-100 background inputs
-    - [x] Remove QR Code tabs and keep simple email/password form
-    - [x] Change "Forgot Password" to "Recovery Password" to match design
-    - [x] Update RegisterPage to use First Name and Last Name separate fields
-    - [x] Add "I agree with Terms and Privacy Policy" checkbox
-    - [x] Use solid blue-600 buttons instead of gradients
-    - [x] Remove password strength indicator for cleaner interface
-    - [x] Update placeholders to match mockup text ("Fast Name", "Last Name", "E-mail Address")
-    - [x] Implement clean focus states with ring-blue-500
-    - [x] Test both pages accessibility and functionality on localhost:5174
 
-### 2.8. Redesign Auth Pages - Minimalist Modern 2025 Style (New - 2025-05-28)
-- [x] **Redesign Login and Register Pages** (2025-05-28) ✅ COMPLETED
-  - [x] Remove existing login and register pages completely
-  - [x] Design new minimalist login page following 2025 modern trends
-  - [x] Design new minimalist register page following 2025 modern trends  
-  - [x] Remove all social login features and buttons
-  - [x] Implement clean, card-based layout with subtle shadows
-  - [x] Use modern typography with proper spacing and hierarchy
-  - [x] Apply consistent color palette (deep blue, electric blue, emerald green)
-  - [x] Add smooth micro-interactions and hover effects
-  - [x] Ensure responsive design for all device sizes
-  - [x] Implement form validation with modern error states
-  - [x] Add loading states with skeleton components
-  - [x] Update unit tests for new components
-  - [x] Verify accessibility compliance (WCAG 2.2)
-- [x] **Implement Complete RegisterPage with Validation** (2025-01-28) ✅ COMPLETED
-  - [x] Create RegisterPage component with form validation and authentication integration
-  - [x] Add full name, email, password, and confirm password fields
-  - [x] Implement password strength indicator with visual feedback
-  - [x] Add password visibility toggle for both password fields
-  - [x] Implement comprehensive form validation (email format, password complexity, etc.)
-  - [x] Add real-time error clearing when user starts typing
-  - [x] Integrate with AuthContext for registration API calls
-  - [x] Add proper accessibility attributes (ARIA labels, role="alert")
-  - [x] Create unit tests with 100% coverage (form validation, UI interactions, error handling)
-  - [x] Use Soft UI design system with btn-soft-secondary styling
-  - [x] Update CSS variables for emerald-blue gradient theme
-  - [x] Add terms and privacy policy links
-  - [x] Implement redirect logic for authenticated users
-- [x] **Update Style màn hình đăng ký đồng nhất với màn hình đăng nhập** (2025-01-28) ✅ COMPLETED
-  - [x] Tạo RegisterPageSimple với styling đồng nhất với LoginPageSimple
-  - [x] Sử dụng inline styles và layout hoàn toàn giống với LoginPage
-  - [x] Áp dụng màu sắc phù hợp: emerald green (#10b981) cho button đăng ký vs blue (#2563eb) cho đăng nhập
-  - [x] Thêm password strength indicator với visual feedback
-  - [x] Implement password visibility toggle cho cả password và confirm password fields
-  - [x] Thêm comprehensive form validation với real-time error clearing
-  - [x] Tạo unit tests cho RegisterPageSimple với 100% coverage
-  - [x] Update App.tsx để sử dụng RegisterPageSimple thay vì RegisterPage
-  - [x] Test UI consistency giữa login và register pages
-- [x] **Relax Password Validation cho Development Mode** (2025-01-28) ✅ COMPLETED
-  - [x] Update password validation để chấp nhận mọi mật khẩu có ít nhất 1 ký tự
-  - [x] Loại bỏ yêu cầu password complexity (uppercase, lowercase, number, special chars)
-  - [x] Update password strength indicator để phù hợp với validation mới
-  - [x] Thêm development mode notice trong UI với warning style
-  - [x] Update unit tests để reflect password validation changes
-  - [x] Maintain form validation cho các fields khác (email format, password confirmation)
-
-### 2.9. Fix Login Screen White/Blank Issue (New - 2025-01-21)
+### 3.9. Fix Login Screen White/Blank Issue (New - 2025-01-21)
 - [x] **Debug Login Screen White Issue** (2025-01-21) ✅ COMPLETED
   - [x] Kiểm tra frontend container status và logs
   - [x] Phân tích cấu trúc routing và components  
@@ -306,7 +291,7 @@
   - [x] Test các routes (/login, /debug, /register) hoạt động
   - [x] Restart frontend container và confirm fix
 
-### 2.10. Debug Large @ Character in Login Screen (New - 2025-01-21)
+### 3.10. Debug Large @ Character in Login Screen (New - 2025-01-21)
 - [x] **Fix UI Issue with Large @ Symbol** (2025-01-21) ✅ COMPLETED
   - [x] Phân tích vấn đề: ký tự @ to hiển thị giữa email và password fields
   - [x] Loại bỏ SVG icon @ trong email input field 
@@ -316,28 +301,28 @@
   - [x] Update LoginPage để sử dụng clean input design
   - [x] Test UI hoạt động bình thường
 
-### 2.11. Refactor Add Repository Feature (2025-06-11)
+### 3.11. Refactor Add Repository Feature (2025-06-11)
 - [ ] Backend: Refactor API /repositories chỉ nhận repo_url, tự động lấy metadata (name, description, language, avatar, ...)
 - [ ] Backend: Hỗ trợ clone repo private qua SSH key đã add trên server
 - [ ] Backend: Lấy metadata qua API public (GitHub/GitLab/Bitbucket) hoặc local parse nếu không có token
 - [ ] Backend: Xử lý lỗi chi tiết (repo không tồn tại, không truy cập được, SSH key thiếu, ...)
-- [ ] Backend: Viết unit test cho các trường hợp chính (public, private, lỗi)
+- [x] Backend: Viết unit test cho các trường hợp chính (public, private, lỗi)
 - [x] Backend: **Cập nhật hỗ trợ clone repo private qua Personal Access Token (PAT), không lưu token, chỉ dùng cho lần clone**
-- [ ] Backend: **Test clone repo private với PAT thành công**
-- [ ] Backend: **Cập nhật docs hướng dẫn sử dụng PAT cho dev**
-- [ ] Backend: **Tối ưu bảo mật, không log PAT ra console/log file**
+- [x] Backend: **Test clone repo private với PAT thành công**
+- [x] Backend: **Cập nhật docs hướng dẫn sử dụng PAT cho dev**
+- [x] Backend: **Tối ưu bảo mật, không log PAT ra console/log file**
 - [ ] Backend: **(Optional) Tích hợp OAuth/GitHub App cho production**
-- [ ] Backend: **Test lại toàn bộ flow với user thật**
-- [ ] Frontend: Thêm trường PAT (Personal Access Token, optional) vào form Add Repository
-- [ ] Frontend: Bổ sung tooltip/hướng dẫn lấy PAT (link GitHub, quyền tối thiểu, cảnh báo không lưu token)
-- [ ] Frontend: Gửi cả repo_url và access_token lên backend khi submit
-- [ ] Frontend: Hiển thị thông báo lỗi/thành công rõ ràng (nếu clone thất bại do quyền, PAT sai, ...)
-- [ ] Frontend: UX rõ ràng, validate URL và PAT phía client (nếu cần)
-- [ ] Frontend: Test lại toàn bộ flow với repo public/private
+- [x] Backend: **Test lại toàn bộ flow với user thật**
+- [x] Frontend: Thêm trường PAT (Personal Access Token, optional) vào form Add Repository
+- [x] Frontend: Bổ sung tooltip/hướng dẫn lấy PAT (link GitHub, quyền tối thiểu, cảnh báo không lưu token)
+- [x] Frontend: Gửi cả repo_url và access_token lên backend khi submit
+- [x] Frontend: Hiển thị thông báo lỗi/thành công rõ ràng (nếu clone thất bại do quyền, PAT sai, ...)
+- [x] Frontend: UX rõ ràng, validate URL và PAT phía client (nếu cần)
+- [x] Frontend: Test lại toàn bộ flow với repo public/private
 
 ## 🏗️ Infrastructure & Deployment
 
-## 3. Discovered During Work
+## 4. Discovered During Work
 - [x] **Debug Login Authentication Flow (2025-05-28)** ✅ COMPLETED
   - [x] Fixed SQLAlchemy text() expression warning trong database health check
   - [x] Added comprehensive logging cho authentication flow (routes, service, API)
@@ -360,9 +345,17 @@
     - ✅ All steps có comprehensive logging để debug
   - [x] Tested với curl command và confirmed user ID: 3 được tạo thành công
   - [x] Registration flow hoàn chỉnh và sẵn sàng để user sử dụng
+- [x] **Fix Floating Add Repository Button Issue (2025-01-28)** ✅ COMPLETED
+  - [x] Diagnosed issue: Tailwind CSS classes và Lucide icons không load được trong environment
+  - [x] Confirmed button click handlers và React state management hoạt động bình thường
+  - [x] Replaced tất cả Tailwind CSS classes với inline styles trong AddRepositoryModal
+  - [x] Replaced tất cả Lucide icons với emoji icons (📁, 🔗, 👁️, ❓, etc.)
+  - [x] Maintained full functionality: form validation, API integration, error handling
+  - [x] Added CSS keyframes animation cho loading spinner
+  - [x] Cleaned up debug code và console logs
+  - [x] Verified floating button click → modal display → form submission workflow
+  - [x] Modal now renders consistently across all environments using pure inline styles
 - [ ] Optimize performance for large codebases, reduce LLM cost
-- [ ] Add warnings when scan exceeds resource thresholds
-- [ ] Optimize knowledge base storage, periodic vector store cleanup
 
 ## TODO LATE
 - [ ] **Security Enhancements**

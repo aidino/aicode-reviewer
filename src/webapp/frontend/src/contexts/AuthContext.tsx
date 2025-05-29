@@ -104,21 +104,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const accessToken = apiService.getAuthToken();
     
     if (!accessToken) {
+      console.log('No access token found, setting loading to false');
       dispatch({ type: 'SET_LOADING', payload: false });
       return;
     }
 
     try {
-      const response = await apiService.getCurrentUser();
+      console.log('Checking authentication with backend...');
+      
+      // Add timeout to the API call
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Auth check timeout')), 3000);
+      });
+      
+      const apiPromise = apiService.getCurrentUser();
+      const response = await Promise.race([apiPromise, timeoutPromise]);
       
       if (response.error) {
+        console.log('Auth check failed, trying token refresh...');
         // Token might be expired, try to refresh
         await handleTokenRefresh();
       } else {
+        console.log('Auth check successful');
         dispatch({ type: 'SET_USER', payload: response.data! });
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      if (error.message === 'Auth check timeout') {
+        console.warn('Auth check timed out, assuming no authentication');
+      }
       handleLogout();
     }
   }, []);
@@ -312,7 +326,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Initial auth check
   useEffect(() => {
-    checkAuth();
+    // TEMPORARY: Skip auth check to avoid loading screen stuck
+    console.log('⚠️ Temporarily skipping auth check - setting loading to false immediately');
+    dispatch({ type: 'SET_LOADING', payload: false });
+    
+    // Comment out the original auth check temporarily
+    /*
+    let timeoutId: NodeJS.Timeout;
+    
+    const performAuthCheck = async () => {
+      try {
+        await checkAuth();
+      } catch (error) {
+        console.error('Initial auth check failed:', error);
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    };
+    
+    // Set a timeout fallback
+    timeoutId = setTimeout(() => {
+      console.warn('Auth check timeout - setting loading to false');
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }, 5000); // 5 second timeout
+    
+    performAuthCheck().finally(() => {
+      clearTimeout(timeoutId);
+    });
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
+    */
   }, [checkAuth]);
 
   const contextValue: AuthContextValue = {

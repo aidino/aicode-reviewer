@@ -5,29 +5,19 @@
  */
 
 import React from 'react';
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import App from './App';
-// import SimpleApp from './App.simple'; // For debugging
+// import SimpleApp from './App.simple';
+// import AppDebug from './App.debug';
 
-// Get the root element
+console.log('🚀 AI Code Reviewer starting...');
+
 const container = document.getElementById('root');
 
-console.log('Container found:', container);
-
-if (!container) {
-  console.error('Root element not found!');
-  throw new Error('Root element not found. Make sure you have a div with id="root" in your HTML.');
+if (container) {
+  const root = createRoot(container);
+  root.render(<App />);
+  console.log('✅ React app mounted successfully');
+} else {
+  console.error('❌ Root container not found');
 }
-
-// Create the root and render the app
-const root = ReactDOM.createRoot(container);
-
-console.log('About to render App...');
-
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
-
-console.log('App rendered!'); 

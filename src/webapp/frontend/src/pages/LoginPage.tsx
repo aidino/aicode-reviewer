@@ -1,5 +1,5 @@
 /**
- * Trang đăng nhập đơn giản cho AI Code Reviewer
+ * Trang đăng nhập cho AI Code Reviewer với inline styles nhất quán
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,6 +20,16 @@ export const LoginPage: React.FC = () => {
 
   const [errors, setErrors] = useState<Partial<Record<keyof LoginRequest, string>>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // Load remembered email on component mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem('rememberedEmail');
+    if (rememberedEmail) {
+      setFormData(prev => ({ ...prev, username: rememberedEmail }));
+      setRememberMe(true);
+    }
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -68,6 +78,13 @@ export const LoginPage: React.FC = () => {
     }
 
     try {
+      // Handle remember me functionality
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', formData.username);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+
       await login(formData);
       // Navigation is handled by the useEffect above
     } catch (error) {
@@ -77,163 +94,260 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Main Card */}
-        <div className="card-soft">
-          <div className="card-soft-body p-8">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v-2H7v-2H4a1 1 0 01-1-1v-4a1 1 0 011-1h3l2.257-2.257A6 6 0 0121 9z" />
-                </svg>
-              </div>
-              
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Đăng nhập
-              </h1>
-              
-              <p className="text-gray-600 text-sm">
-                Chào mừng bạn quay lại với AI Code Reviewer
-              </p>
-            </div>
-
-            {/* Form */}
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-6"
-              noValidate
-            >
-              {/* Email Field */}
-              <div className="space-y-2">
-                <label htmlFor="username" className="block text-sm font-semibold text-gray-800">
-                  Email
-                </label>
-                <div className="relative">
-                  <input
-                    id="username"
-                    type="email"
-                    value={formData.username}
-                    onChange={(e) => handleInputChange('username', e.target.value)}
-                    className={`
-                      form-input w-full h-12 px-4 rounded-xl border-2 transition-all duration-200
-                      bg-white text-gray-900 placeholder-gray-500
-                      focus:ring-0 focus:outline-none
-                      ${errors.username 
-                        ? 'border-red-300 focus:border-red-500 bg-red-50' 
-                        : 'border-gray-200 focus:border-blue-500 hover:border-gray-300'
-                      }
-                    `}
-                    placeholder="Nhập email của bạn"
-                    disabled={loading}
-                    autoComplete="email"
-                    required
-                    aria-describedby={errors.username ? 'username-error' : undefined}
-                  />
-                </div>
-                {errors.username && (
-                  <p
-                    id="username-error"
-                    className="text-sm text-red-600 font-medium"
-                    role="alert"
-                  >
-                    {errors.username}
-                  </p>
-                )}
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <label htmlFor="password" className="block text-sm font-semibold text-gray-800">
-                  Mật khẩu
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
-                    className={`
-                      form-input w-full h-12 px-4 pr-12 rounded-xl border-2 transition-all duration-200
-                      bg-white text-gray-900 placeholder-gray-500
-                      focus:ring-0 focus:outline-none
-                      ${errors.password 
-                        ? 'border-red-300 focus:border-red-500 bg-red-50' 
-                        : 'border-gray-200 focus:border-blue-500 hover:border-gray-300'
-                      }
-                    `}
-                    placeholder="Nhập mật khẩu"
-                    disabled={loading}
-                    autoComplete="current-password"
-                    required
-                    aria-describedby={errors.password ? 'password-error' : undefined}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 transition-colors"
-                    disabled={loading}
-                    tabIndex={-1}
-                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  >
-                    {showPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L8.464 8.464M9.878 9.878A3 3 0 0012 9c.612 0 1.176.171 1.663.471m-.547 4.773A3 3 0 0112 15c-.612 0-1.176-.171-1.663-.471M9.878 9.878a3 3 0 104.243 4.243m4.243-4.243A3 3 0 0112 9c-.612 0 1.176.171 1.663.471m-.547 4.773a3 3 0 01-1.663-.471M9.878 9.878L8.464 8.464 2.05 2.05M9.878 9.878L14.12 14.12M9.878 9.878A3 3 0 0012 9c.612 0 1.176.171 1.663.471m-.547 4.773A3 3 0 0112 15c-.612 0-1.176-.171-1.663-.471" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <p
-                    id="password-error"
-                    className="text-sm text-red-600 font-medium"
-                    role="alert"
-                  >
-                    {errors.password}
-                  </p>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-soft btn-soft-primary w-full h-12 text-base font-semibold relative overflow-hidden"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center space-x-2">
-                    <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Đang đăng nhập...</span>
-                  </div>
-                ) : (
-                  'Đăng nhập'
-                )}
-              </button>
-            </form>
-
-            {/* Footer */}
-            <div className="mt-8 text-center">
-              <p className="text-sm text-gray-600">
-                Chưa có tài khoản?{' '}
-                <Link
-                  to="/register"
-                  className="font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-                >
-                  Đăng ký ngay
-                </Link>
-              </p>
-            </div>
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#f8fafc',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        padding: '2rem',
+        borderRadius: '12px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        width: '100%',
+        maxWidth: '400px'
+      }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+            borderRadius: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem auto',
+            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+          }}>
+            <span style={{ fontSize: '2rem' }}>🔐</span>
           </div>
+          
+          <h1 style={{
+            fontSize: '2rem',
+            fontWeight: 'bold',
+            color: '#1e293b',
+            marginBottom: '0.5rem'
+          }}>
+            Đăng nhập
+          </h1>
+          
+          <p style={{
+            color: '#64748b',
+            fontSize: '0.875rem'
+          }}>
+            Chào mừng bạn quay lại với AI Code Reviewer
+          </p>
         </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit}>
+          {/* Email Field */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
+              Email:
+            </label>
+            <input
+              type="email"
+              value={formData.username}
+              onChange={(e) => handleInputChange('username', e.target.value)}
+              placeholder="your@email.com"
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: `2px solid ${errors.username ? '#fecaca' : '#e5e7eb'}`,
+                borderRadius: '8px',
+                fontSize: '1rem',
+                outline: 'none',
+                transition: 'border-color 0.2s',
+                backgroundColor: loading ? '#f9fafb' : (errors.username ? '#fef2f2' : 'white')
+              }}
+              onFocus={(e) => e.target.style.borderColor = errors.username ? '#ef4444' : '#3b82f6'}
+              onBlur={(e) => e.target.style.borderColor = errors.username ? '#fecaca' : '#e5e7eb'}
+              required
+            />
+            {errors.username && (
+              <p style={{
+                color: '#dc2626',
+                fontSize: '0.875rem',
+                margin: '0.25rem 0 0 0',
+                fontWeight: '500'
+              }}>
+                {errors.username}
+              </p>
+            )}
+          </div>
+
+          {/* Password Field */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '0.875rem',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '0.5rem'
+            }}>
+              Mật khẩu:
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                placeholder="Nhập mật khẩu"
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  paddingRight: '3rem',
+                  border: `2px solid ${errors.password ? '#fecaca' : '#e5e7eb'}`,
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                  backgroundColor: loading ? '#f9fafb' : (errors.password ? '#fef2f2' : 'white')
+                }}
+                onFocus={(e) => e.target.style.borderColor = errors.password ? '#ef4444' : '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = errors.password ? '#fecaca' : '#e5e7eb'}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#6b7280',
+                  fontSize: '1.2rem'
+                }}
+              >
+                {showPassword ? '🙈' : '👁️'}
+              </button>
+            </div>
+            {errors.password && (
+              <p style={{
+                color: '#dc2626',
+                fontSize: '0.875rem',
+                margin: '0.25rem 0 0 0',
+                fontWeight: '500'
+              }}>
+                {errors.password}
+              </p>
+            )}
+          </div>
+
+          {/* Remember Me Checkbox */}
+          <div style={{ 
+            marginBottom: '1.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem'
+          }}>
+            <input
+              type="checkbox"
+              id="rememberMe"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={loading}
+              style={{
+                width: '16px',
+                height: '16px',
+                accentColor: '#3b82f6'
+              }}
+            />
+            <label
+              htmlFor="rememberMe"
+              style={{
+                fontSize: '0.875rem',
+                color: '#374151',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+            >
+              Ghi nhớ email
+            </label>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: loading ? '#9ca3af' : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '1rem',
+              fontWeight: '600',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s',
+              marginBottom: '1rem'
+            }}
+            onMouseOver={(e) => {
+              if (!loading) e.target.style.backgroundColor = '#2563eb';
+            }}
+            onMouseOut={(e) => {
+              if (!loading) e.target.style.backgroundColor = '#3b82f6';
+            }}
+          >
+            {loading ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid transparent',
+                  borderTop: '2px solid #ffffff',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                Đang đăng nhập...
+              </div>
+            ) : (
+              'Đăng nhập'
+            )}
+          </button>
+
+          {/* Register Link */}
+          <div style={{ textAlign: 'center' }}>
+            <p style={{
+              color: '#64748b',
+              fontSize: '0.875rem'
+            }}>
+              Chưa có tài khoản?{' '}
+              <Link 
+                to="/register" 
+                style={{
+                  color: '#3b82f6',
+                  textDecoration: 'none',
+                  fontWeight: '600'
+                }}
+                onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+              >
+                Đăng ký ngay
+              </Link>
+            </p>
+          </div>
+        </form>
       </div>
     </div>
   );

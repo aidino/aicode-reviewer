@@ -161,6 +161,38 @@ class ApiService {
   }
 
   /**
+   * Get repositories for current user.
+   * 
+   * Returns:
+   *   Promise<ApiResponse<RepositoryListResponse>>: List of user repositories with statistics
+   */
+  async getRepositories(): Promise<ApiResponse<any>> {
+    return this.fetchWithErrorHandling<any>(`/api/repositories/`);
+  }
+
+  /**
+   * Add a new repository.
+   * 
+   * Args:
+   *   repoUrl: Repository URL
+   *   accessToken: Optional PAT token for private repositories
+   * 
+   * Returns:
+   *   Promise<ApiResponse<any>>: Added repository data
+   */
+  async addRepository(repoUrl: string, accessToken?: string): Promise<ApiResponse<any>> {
+    const requestBody = {
+      repo_url: repoUrl,
+      ...(accessToken && { access_token: accessToken })
+    };
+
+    return this.fetchWithErrorHandling<any>(`/api/repositories/`, {
+      method: 'POST',
+      body: JSON.stringify(requestBody),
+    });
+  }
+
+  /**
    * Get detailed report for a specific scan.
    * 
    * Args:

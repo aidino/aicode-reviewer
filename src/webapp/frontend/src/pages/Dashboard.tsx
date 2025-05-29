@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, TrendingDown, Activity, AlertCircle, CheckCircle, Clock, Users, Bug, Folder, Brain, Plus, GitBranch, Star, Eye, Edit, Trash2, X } from 'lucide-react';
 import Layout from '../components/Layout';
+import AddRepositoryModal from '../components/AddRepositoryModal';
+import { apiService } from '../services/api';
 // import { useSidebar } from '../contexts/SidebarContext'; // No longer needed in Dashboard component
 import '../styles/Dashboard.css';
 import '../styles/components.css';
@@ -180,6 +182,7 @@ const Dashboard: React.FC = () => {
   
   // Repository management states  
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showAddRepositoryModal, setShowAddRepositoryModal] = useState(false);
 
   const timeRangeOptions = [
     { value: 'LAST_7_DAYS', label: '7 ngày qua' },
@@ -192,9 +195,35 @@ const Dashboard: React.FC = () => {
 
   const fetchDashboardData = async (timeRange: string) => {
     try {
+      // 🔄 Fetch repositories from API
+      const repositoriesResponse = await apiService.getRepositories();
       
-      // Mock data for development - remove when API is ready
-      const mockData: DashboardSummary = {
+      if (repositoriesResponse.error) {
+        console.error('❌ Failed to fetch repositories:', repositoriesResponse.error);
+        throw new Error(repositoriesResponse.error.detail || 'Không thể tải danh sách repositories');
+      }
+
+      const repositoriesData = repositoriesResponse.data;
+      console.log('✅ Fetched repositories from API:', repositoriesData);
+
+      // Convert API response to frontend Repository format
+      const frontendRepositories: Repository[] = repositoriesData.repositories.map((repo: any) => ({
+        id: repo.id.toString(),
+        name: repo.name,
+        url: repo.url,
+        description: repo.description,
+        language: repo.language || 'Unknown',
+        stars: repo.stars || 0,
+        forks: repo.forks || 0,
+        last_scan: repo.last_synced_at,
+        scan_count: 0, // Default for now, later can be calculated from scans
+        health_score: 85, // Default health score, later can be calculated
+        issues_count: 0, // Default for now, later can be calculated from findings
+        status: repo.is_private ? 'private' : 'active'
+      }));
+
+      // Mock data for dashboard statistics (will be replaced with real API later)
+      const mockDashboardData: DashboardSummary = {
         time_range: timeRange,
         generated_at: new Date().toISOString(),
         scan_metrics: {
@@ -220,15 +249,12 @@ const Dashboard: React.FC = () => {
           ]
         },
         repository_metrics: {
-          total_repositories: 45,
-          most_scanned_repos: [
-            { repository: 'acme/frontend-app', scan_count: 89 },
-            { repository: 'acme/backend-api', scan_count: 67 },
-            { repository: 'acme/mobile-app', scan_count: 54 },
-            { repository: 'acme/analytics-service', scan_count: 43 },
-            { repository: 'acme/notification-service', scan_count: 32 }
-          ],
-          languages_analyzed: { 'JavaScript': 18, 'Python': 12, 'Java': 8, 'TypeScript': 7 },
+          total_repositories: repositoriesData.total_count, // Use real count from API
+          most_scanned_repos: frontendRepositories.slice(0, 5).map(repo => ({
+            repository: repo.name,
+            scan_count: repo.scan_count
+          })),
+          languages_analyzed: repositoriesData.summary.languages || {},
           avg_repository_health: 87.5
         },
         xai_metrics: {
@@ -249,17 +275,13 @@ const Dashboard: React.FC = () => {
           category_trends: {}
         },
         recent_scans: [
-          { scan_id: 'scan_001', repository: 'acme/frontend-app', status: 'completed', timestamp: '2025-01-28T10:30:00Z', findings_count: 12 },
-          { scan_id: 'scan_002', repository: 'acme/backend-api', status: 'running', timestamp: '2025-01-28T11:15:00Z', findings_count: 0 },
-          { scan_id: 'scan_003', repository: 'acme/mobile-app', status: 'completed', timestamp: '2025-01-28T09:45:00Z', findings_count: 8 },
-          { scan_id: 'scan_004', repository: 'acme/analytics-service', status: 'failed', timestamp: '2025-01-28T08:20:00Z', findings_count: 0 },
-          { scan_id: 'scan_005', repository: 'acme/notification-service', status: 'completed', timestamp: '2025-01-27T16:30:00Z', findings_count: 15 }
+          { scan_id: 'scan_001', repository: frontendRepositories[0]?.name || 'No repos', status: 'completed', timestamp: '2025-01-28T10:30:00Z', findings_count: 12 },
+          { scan_id: 'scan_002', repository: frontendRepositories[1]?.name || 'No repos', status: 'running', timestamp: '2025-01-28T11:15:00Z', findings_count: 0 },
+          { scan_id: 'scan_003', repository: frontendRepositories[2]?.name || 'No repos', status: 'completed', timestamp: '2025-01-28T09:45:00Z', findings_count: 8 }
         ],
         recent_findings: [
           { rule_id: 'unused-variable', severity: 'warning', message: 'Variable "tempData" is declared but never used', timestamp: '2025-01-28T10:30:00Z', scan_id: 'scan_001' },
-          { rule_id: 'potential-sql-injection', severity: 'error', message: 'Potential SQL injection vulnerability detected in user input handling', timestamp: '2025-01-28T10:28:00Z', scan_id: 'scan_001' },
-          { rule_id: 'missing-documentation', severity: 'info', message: 'Function calculateTotal() lacks JSDoc documentation', timestamp: '2025-01-28T09:45:00Z', scan_id: 'scan_003' },
-          { rule_id: 'code-complexity', severity: 'warning', message: 'Function complexity exceeds recommended threshold (15 > 10)', timestamp: '2025-01-28T09:42:00Z', scan_id: 'scan_003' }
+          { rule_id: 'potential-sql-injection', severity: 'error', message: 'Potential SQL injection vulnerability detected in user input handling', timestamp: '2025-01-28T10:28:00Z', scan_id: 'scan_001' }
         ],
         system_health: {
           status: 'healthy',
@@ -271,96 +293,8 @@ const Dashboard: React.FC = () => {
         }
       };
 
-      // Mock repositories data
-      const mockRepositories: Repository[] = [
-        {
-          id: 'repo_001',
-          name: 'acme/frontend-app',
-          url: 'https://github.com/acme/frontend-app',
-          description: 'Main frontend application built with React and TypeScript',
-          language: 'TypeScript',
-          stars: 342,
-          forks: 89,
-          last_scan: '2025-01-28T10:30:00Z',
-          scan_count: 89,
-          health_score: 92,
-          issues_count: 12,
-          status: 'active'
-        },
-        {
-          id: 'repo_002',
-          name: 'acme/backend-api',
-          url: 'https://github.com/acme/backend-api',
-          description: 'REST API backend service with Node.js and Express',
-          language: 'JavaScript',
-          stars: 198,
-          forks: 45,
-          last_scan: '2025-01-28T11:15:00Z',
-          scan_count: 67,
-          health_score: 88,
-          issues_count: 8,
-          status: 'active'
-        },
-        {
-          id: 'repo_003',
-          name: 'acme/mobile-app',
-          url: 'https://github.com/acme/mobile-app',
-          description: 'Cross-platform mobile app using React Native',
-          language: 'JavaScript',
-          stars: 156,
-          forks: 32,
-          last_scan: '2025-01-28T09:45:00Z',
-          scan_count: 54,
-          health_score: 85,
-          issues_count: 8,
-          status: 'active'
-        },
-        {
-          id: 'repo_004',
-          name: 'acme/analytics-service',
-          url: 'https://github.com/acme/analytics-service',
-          description: 'Data analytics microservice with Python and FastAPI',
-          language: 'Python',
-          stars: 89,
-          forks: 23,
-          last_scan: '2025-01-28T08:20:00Z',
-          scan_count: 43,
-          health_score: 79,
-          issues_count: 15,
-          status: 'active'
-        },
-        {
-          id: 'repo_005',
-          name: 'acme/notification-service',
-          url: 'https://github.com/acme/notification-service',
-          description: 'Push notification service using Go and Redis',
-          language: 'Go',
-          stars: 67,
-          forks: 18,
-          last_scan: '2025-01-27T16:30:00Z',
-          scan_count: 32,
-          health_score: 91,
-          issues_count: 5,
-          status: 'active'
-        },
-        {
-          id: 'repo_006',
-          name: 'acme/legacy-system',
-          url: 'https://github.com/acme/legacy-system',
-          description: 'Legacy Java application (maintenance mode)',
-          language: 'Java',
-          stars: 45,
-          forks: 12,
-          last_scan: '2025-01-25T14:20:00Z',
-          scan_count: 18,
-          health_score: 65,
-          issues_count: 32,
-          status: 'archived'
-        }
-      ];
-
-      setDashboardData(mockData);
-      setRepositories(mockRepositories);
+      setDashboardData(mockDashboardData);
+      setRepositories(frontendRepositories);
       setError(null);
     } catch (err) {
       console.error('Dashboard fetch error:', err);
@@ -448,7 +382,57 @@ const Dashboard: React.FC = () => {
   };
 
   const handleAddRepository = () => {
-    window.location.href = '/repositories/new';
+    setShowAddRepositoryModal(true);
+  };
+
+  const handleRepositoryAdded = async (newRepo: any) => {
+    console.log(`✅ Repository added successfully: ${newRepo.name}`);
+    
+    // Refetch repositories to ensure we have the latest data
+    try {
+      const repositoriesResponse = await apiService.getRepositories();
+      
+      if (repositoriesResponse.error) {
+        console.error('❌ Failed to refetch repositories:', repositoriesResponse.error);
+        return;
+      }
+
+      const repositoriesData = repositoriesResponse.data;
+      
+      // Convert API response to frontend Repository format
+      const frontendRepositories: Repository[] = repositoriesData.repositories.map((repo: any) => ({
+        id: repo.id.toString(),
+        name: repo.name,
+        url: repo.url,
+        description: repo.description,
+        language: repo.language || 'Unknown',
+        stars: repo.stars || 0,
+        forks: repo.forks || 0,
+        last_scan: repo.last_synced_at,
+        scan_count: 0,
+        health_score: 85,
+        issues_count: 0,
+        status: repo.is_private ? 'private' : 'active'
+      }));
+
+      setRepositories(frontendRepositories);
+      
+      // Update dashboard metrics
+      if (dashboardData) {
+        setDashboardData(prev => prev ? {
+          ...prev,
+          repository_metrics: {
+            ...prev.repository_metrics,
+            total_repositories: repositoriesData.total_count,
+            languages_analyzed: repositoriesData.summary.languages || {}
+          }
+        } : null);
+      }
+      
+      console.log(`📊 Updated repository list with ${frontendRepositories.length} repositories`);
+    } catch (error) {
+      console.error('❌ Error refetching repositories:', error);
+    }
   };
 
   if (loading) {
@@ -721,8 +705,16 @@ const Dashboard: React.FC = () => {
 
           {/* Floating Add Repository Button */}
           <motion.button
-            className="floating-button"
+            className="floating-add-repo-button"
             onClick={handleAddRepository}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #80AF81 0%, #1A5319 100%)';
+              e.currentTarget.style.boxShadow = '0 20px 48px rgba(26,83,25, 0.5), 0 8px 16px rgba(26,83,25, 0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'linear-gradient(135deg, #80AF81 0%, #508D4E 100%)';
+              e.currentTarget.style.boxShadow = '0 12px 32px rgba(26,83,25, 0.4), 0 2px 6px rgba(26,83,25, 0.2)';
+            }}
             whileHover={{ 
               scale: 1.1,
               y: -4,
@@ -747,17 +739,104 @@ const Dashboard: React.FC = () => {
               damping: 20
             }}
             title="Thêm repository mới"
+            style={{
+              position: 'fixed',
+              bottom: '2rem',
+              right: '2rem',
+              zIndex: 9999,
+              background: 'linear-gradient(135deg, #80AF81 0%, #508D4E 100%)',
+              border: 'none',
+              width: '72px',
+              height: '72px',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontSize: '28px',
+              fontWeight: 'bold',
+              boxShadow: '0 12px 32px rgba(26,83,25, 0.4), 0 2px 6px rgba(26,83,25, 0.2)',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
           >
-            <div className="floating-button-icon">
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}>
               <Plus size={28} strokeWidth={2.5} />
             </div>
           </motion.button>
 
+          {/* Test: Simple modal without framer-motion */}
+          {false && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.8)',
+              zIndex: 9997,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                background: 'white',
+                padding: '30px',
+                borderRadius: '10px',
+                maxWidth: '500px',
+                width: '90%'
+              }}>
+                <h2 style={{ margin: '0 0 20px 0', color: '#000' }}>🧪 Simple React Modal Test</h2>
+                <p style={{ color: '#666', marginBottom: '20px' }}>
+                  Nếu bạn thấy modal này, nghĩa là React component rendering hoạt động bình thường.
+                </p>
+                <p style={{ color: '#666', marginBottom: '20px' }}>
+                  Vấn đề có thể là với AddRepositoryModal component hoặc framer-motion.
+                </p>
+                <button 
+                  onClick={() => window.location.reload()}
+                  style={{
+                    background: '#ef4444',
+                    color: 'white',
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Reload để tắt test này
+                </button>
+              </div>
+            </div>
+          )}
 
+          {/* Test: Always render modal for debug */}
+          {false && (
+            <AddRepositoryModal
+              isOpen={true}
+              onClose={() => {
+                console.log('🔴 Test modal close requested');
+              }}
+              onSuccess={handleRepositoryAdded}
+            />
+          )}
 
-          </div>
+          {showAddRepositoryModal && (
+            <AddRepositoryModal
+              isOpen={showAddRepositoryModal}
+              onClose={() => setShowAddRepositoryModal(false)}
+              onSuccess={handleRepositoryAdded}
+            />
+          )}
+
         </div>
-      </Layout>
+      </div>
+    </Layout>
   );
 };
 

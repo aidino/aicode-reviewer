@@ -32,7 +32,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    
+    /* Test types */
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": [
     "src",
