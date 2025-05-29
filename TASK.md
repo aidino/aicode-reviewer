@@ -52,6 +52,29 @@
   - [x] Verified React application runs normally with proper logging
   - [x] Confirmed white screen issue completely resolved
 
+### 2.3. Authentication Refresh Issue Fix ✅ COMPLETED (2025-01-29)
+- [x] **Problem Diagnosis**
+  - [x] Identified authentication logout when refreshing page (F5) despite valid tokens
+  - [x] Found inconsistent token storage and strict auth check causing premature logout
+  - [x] Analyzed race conditions in authentication flow and network error handling
+  - [x] Documented issue in ISSUES.md with detailed root causes and solutions
+- [x] **AuthContext Improvements**
+  - [x] Enhanced checkAuth() to restore user data immediately from localStorage when tokens exist
+  - [x] Improved network error handling to distinguish auth errors from network timeouts
+  - [x] Increased timeout from 5s to 8s for auth check and 10s to 15s for fallback timeout
+  - [x] Added user state restoration on timeout when valid tokens are present
+  - [x] Implemented fallback mechanism to keep user logged in during network issues
+- [x] **Token Refresh Enhancements**
+  - [x] Enhanced handleTokenRefresh() to distinguish auth errors (401/403) from network errors
+  - [x] Added proper error code checking before forcing logout
+  - [x] Implemented graceful degradation for network failures during token refresh
+  - [x] Added comprehensive logging for debugging authentication flows
+- [x] **Testing & Validation**
+  - [x] Created test-auth-refresh.html for manual testing of authentication flow
+  - [x] Added mock token and user data simulation for testing scenarios
+  - [x] Implemented console logging redirection for better debugging visibility
+  - [x] Verified user stays logged in during page refresh with valid tokens
+
 ## 3. Remaining/Additional Tasks
 ### 3.1. Core Engine & Agents
 - [x] **Separate ImpactAnalysisAgent**
@@ -362,7 +385,48 @@
   - [x] Cleaned up debug code và console logs
   - [x] Verified floating button click → modal display → form submission workflow
   - [x] Modal now renders consistently across all environments using pure inline styles
-- [ ] Optimize performance for large codebases, reduce LLM cost
+- [x] **Fix Backend Cryptography Dependency Issue (2025-01-29)** ✅ COMPLETED
+  - [x] Diagnosed backend container crash due to missing 'cryptography' module
+  - [x] Identified error in token_manager.py: `from cryptography.fernet import Fernet`
+  - [x] Added cryptography>=41.0.0 to requirements.txt as standalone dependency
+  - [x] Rebuilt backend container with --no-cache to ensure fresh installation
+  - [x] Verified backend container starts successfully without import errors
+  - [x] Confirmed all containers running healthy: backend, frontend, postgres, redis
+  - [x] Tested API endpoints - backend responds properly at localhost:8000
+  - [x] Tested frontend - loads correctly at localhost:5173
+  - [x] System now fully operational with smart repository cache functionality
+- [x] **Fix Database Connection Configuration Issue (2025-01-29)** ✅ COMPLETED
+  - [x] Diagnosed pydantic settings env_prefix issue causing localhost connection instead of postgres
+  - [x] Fixed DatabaseSettings env_prefix from "POSTGRES_" to read POSTGRES_HOST environment variable correctly
+  - [x] Restarted backend container to apply configuration changes
+  - [x] Verified database connection now uses correct hostname (postgres instead of localhost)
+  - [x] Confirmed health check shows database: "operational" and system: "healthy"
+  - [x] Tested registration endpoint successfully - user creation and JWT token generation working
+  - [x] All database operations now functional including authentication flow
+  - [x] Registration issue completely resolved - users can register and login normally
+- [x] **Fix DashboardSidebar TypeError với charAt Method (2025-01-29)** ✅ COMPLETED
+  - [x] Diagnosed TypeError: Cannot read properties of undefined (reading 'charAt') trong DashboardSidebar.tsx:260
+  - [x] Identified issue: user.username có thể undefined khi gọi charAt(0) method
+  - [x] Added safe check: `user.username && user.username.length > 0 ? user.username.charAt(0).toUpperCase() : '?'`
+  - [x] Enhanced fallback display cho user info: username || 'Anonymous', email || 'No email'
+  - [x] Added safe check cho healthData.status.toUpperCase() để tránh lỗi tương tự
+  - [x] Verified frontend HMR updates applied successfully
+  - [x] No more TypeError in console, sidebar hiển thị bình thường với user avatar
+  - [x] Component error boundary không còn trigger, app hoạt động ổn định
+- [x] **Fix Auto Logout Issue When Page Refresh (2025-01-29)** ✅ COMPLETED
+  - [x] Diagnosed issue: Khi F5 (page refresh), AuthContext auth check failed và auto redirect về login
+  - [x] Root cause: Race condition giữa auth check và token validation, plus không có user state persistence
+  - [x] Enhanced checkAuth logic với better token handling:
+    - [x] Check both access_token và refresh_token thay vì chỉ access_token
+    - [x] Retry refresh_token khi access_token failed
+    - [x] Handle timeout gracefully - không auto logout nếu có tokens
+  - [x] Added user data persistence trong localStorage với USER_STORAGE_KEY
+  - [x] Enhanced handleTokenRefresh với better error handling và user data persistence
+  - [x] Updated login/register functions để lưu user data vào localStorage
+  - [x] Added user data restoration từ localStorage when backend check timeout
+  - [x] Better logging system để debug auth flow issues
+  - [x] Verified: User không còn bị auto logout khi page refresh
+  - [x] Authentication state được preserve correctly qua browser refresh
 
 ## TODO LATE
 - [ ] **Security Enhancements**

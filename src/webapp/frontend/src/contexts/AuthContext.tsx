@@ -80,6 +80,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // Token management utilities
 const TOKEN_STORAGE_KEY = 'refresh_token';
+const USER_STORAGE_KEY = 'user_data';
 const TOKEN_REFRESH_INTERVAL = 14 * 60 * 1000; // 14 minutes (tokens expire in 15)
 
 /**
@@ -103,45 +104,92 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkAuth = useCallback(async () => {
     console.log('🔐 checkAuth: Starting auth check');
     const accessToken = apiService.getAuthToken();
-    console.log('🎫 checkAuth: Access token found:', !!accessToken);
+    const refreshToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    const savedUser = localStorage.getItem(USER_STORAGE_KEY);
     
-    if (!accessToken) {
-      console.log('❌ checkAuth: No access token found, setting loading to false');
+    console.log('🎫 checkAuth: Access token found:', !!accessToken);
+    console.log('🔄 checkAuth: Refresh token found:', !!refreshToken);
+    console.log('👤 checkAuth: Saved user found:', !!savedUser);
+    
+    // If no tokens at all, definitely not authenticated
+    if (!accessToken && !refreshToken) {
+      console.log('❌ checkAuth: No tokens found, setting loading to false');
       dispatch({ type: 'SET_LOADING', payload: false });
       return;
+    }
+
+    // If we have saved user data and tokens, restore immediately to avoid UI flicker
+    if (savedUser && (accessToken || refreshToken)) {
+      try {
+        const userData = JSON.parse(savedUser);
+        console.log('📱 checkAuth: Restoring user from localStorage while verifying...');
+        dispatch({ type: 'SET_USER', payload: userData });
+      } catch (parseError) {
+        console.error('🚫 checkAuth: Failed to parse saved user data, continuing with backend check');
+      }
     }
 
     try {
       console.log('🌐 checkAuth: Checking authentication with backend...');
       
-      // Try to get current user with longer timeout
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Auth check timeout')), 8000); // Increased timeout to 8 seconds
-      });
-      
-      const apiPromise = apiService.getCurrentUser();
-      const response = await Promise.race([apiPromise, timeoutPromise]);
-      
-      if (response.error) {
-        console.log('🔄 checkAuth: Auth check failed, trying token refresh...');
-        console.log('   Error:', response.error);
-        // Token might be expired, try to refresh
+      // If we have access token, try to get current user first
+      if (accessToken) {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Auth check timeout')), 8000);
+        });
+        
+        const apiPromise = apiService.getCurrentUser();
+        const response = await Promise.race([apiPromise, timeoutPromise]);
+        
+        if (response.error) {
+          console.log('🔄 checkAuth: Access token invalid, trying refresh...');
+          await handleTokenRefresh();
+        } else {
+          console.log('✅ checkAuth: Auth check successful');
+          console.log('👤 checkAuth: User data:', response.data);
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(response.data));
+          dispatch({ type: 'SET_USER', payload: response.data! });
+          return;
+        }
+      } else if (refreshToken) {
+        // Only refresh token available, try to refresh
+        console.log('🔄 checkAuth: Only refresh token available, attempting refresh...');
         await handleTokenRefresh();
-      } else {
-        console.log('✅ checkAuth: Auth check successful');
-        console.log('👤 checkAuth: User data:', response.data);
-        dispatch({ type: 'SET_USER', payload: response.data! });
       }
     } catch (error) {
       console.error('💥 checkAuth: Exception occurred:', error);
       if (error.message === 'Auth check timeout') {
-        console.warn('⏰ checkAuth: Auth check timed out, keeping existing state');
-        // Don't logout on timeout, just set loading to false
-        dispatch({ type: 'SET_LOADING', payload: false });
-      } else {
+        console.warn('⏰ checkAuth: Auth check timed out');
+        // On timeout, if we have tokens and user data, keep user logged in
+        if ((accessToken || refreshToken) && savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            console.log('📱 checkAuth: Keeping user logged in due to timeout but tokens exist');
+            dispatch({ type: 'SET_USER', payload: userData });
+            return;
+          } catch (parseError) {
+            console.error('🚫 checkAuth: Failed to parse saved user data');
+          }
+        }
+        
+        // Even if no saved user data, keep logged in state if we have tokens
+        // The user might lose some data but won't be logged out unnecessarily
+        if (accessToken || refreshToken) {
+          console.log('📱 checkAuth: Keeping authentication state due to existing tokens despite timeout');
+          dispatch({ type: 'SET_LOADING', payload: false });
+          return;
+        }
+      }
+      
+      // Only logout if we're sure tokens are invalid (not just network issues)
+      if (error.message !== 'Auth check timeout' && 
+          error.message !== 'Failed to fetch' && 
+          !error.message.includes('network')) {
         console.error('🚪 checkAuth: Logging out due to auth error');
-        // Only logout on actual auth errors, not timeouts
         handleLogout();
+      } else {
+        console.warn('⚠️ checkAuth: Network error, keeping user logged in');
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     }
   }, []);
@@ -153,30 +201,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const refreshToken = localStorage.getItem(TOKEN_STORAGE_KEY);
     
     if (!refreshToken) {
+      console.log('🔄 handleTokenRefresh: No refresh token found, logging out');
       handleLogout();
       return;
     }
 
     try {
+      console.log('🔄 handleTokenRefresh: Attempting token refresh...');
       const response = await apiService.refreshToken({ refresh_token: refreshToken });
       
       if (response.error) {
-        handleLogout();
+        console.log('❌ handleTokenRefresh: Refresh failed:', response.error);
+        // Only logout if it's an authentication error, not network error
+        if (response.error.status_code === 401 || response.error.status_code === 403) {
+          console.log('🚪 handleTokenRefresh: Authentication error, logging out');
+          handleLogout();
+        } else {
+          console.warn('⚠️ handleTokenRefresh: Network error during refresh, keeping user logged in');
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
         return;
       }
 
       const tokens = response.data!;
       apiService.setAuthToken(tokens.access_token);
       localStorage.setItem(TOKEN_STORAGE_KEY, tokens.refresh_token);
+      console.log('✅ handleTokenRefresh: Token refresh successful');
 
       // Fetch user data after successful refresh
-      const userResponse = await apiService.getCurrentUser();
-      if (userResponse.data) {
-        dispatch({ type: 'SET_USER', payload: userResponse.data });
+      try {
+        const userResponse = await apiService.getCurrentUser();
+        if (userResponse.data) {
+          console.log('👤 handleTokenRefresh: User data fetched successfully');
+          localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userResponse.data));
+          dispatch({ type: 'SET_USER', payload: userResponse.data });
+        } else {
+          console.warn('⚠️ handleTokenRefresh: Token refreshed but user data fetch failed, keeping user logged in');
+          // Don't logout here - token is valid, just user data fetch failed temporarily
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+      } catch (userError) {
+        console.warn('⚠️ handleTokenRefresh: Token refreshed but user data fetch threw error, keeping user logged in');
+        console.warn('   User fetch error:', userError);
+        // Don't logout here - token is valid, just user data fetch failed temporarily
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     } catch (error) {
-      console.error('Token refresh failed:', error);
-      handleLogout();
+      console.error('💥 handleTokenRefresh: Token refresh failed:', error);
+      // Only logout if it's clearly an auth error, not network error
+      if (error.message && (
+          error.message.includes('401') || 
+          error.message.includes('403') || 
+          error.message.includes('unauthorized') ||
+          error.message.includes('forbidden')
+      )) {
+        console.log('🚪 handleTokenRefresh: Authentication error, logging out');
+        handleLogout();
+      } else {
+        console.warn('⚠️ handleTokenRefresh: Network error, keeping user logged in');
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
     }
   }, []);
 
@@ -186,6 +270,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const handleLogout = useCallback(() => {
     apiService.setAuthToken(null);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
     dispatch({ type: 'LOGOUT' });
   }, []);
 
@@ -209,6 +294,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Store tokens
       apiService.setAuthToken(loginData.access_token);
       localStorage.setItem(TOKEN_STORAGE_KEY, loginData.refresh_token);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(loginData.user));
       
       dispatch({ type: 'SET_USER', payload: loginData.user });
     } catch (error) {
@@ -239,6 +325,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Store tokens
       apiService.setAuthToken(registerData.access_token);
       localStorage.setItem(TOKEN_STORAGE_KEY, registerData.refresh_token);
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(registerData.user));
       
       dispatch({ type: 'SET_USER', payload: registerData.user });
     } catch (error) {
@@ -346,15 +433,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('✅ AuthContext: Auth check completed');
       } catch (error) {
         console.error('❌ AuthContext: Initial auth check failed:', error);
-        dispatch({ type: 'SET_LOADING', payload: false });
+        // Only set loading to false if we're sure there are no tokens
+        const accessToken = apiService.getAuthToken();
+        const refreshToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+        
+        if (!accessToken && !refreshToken) {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        } else {
+          console.warn('⚠️ AuthContext: Auth check failed but tokens exist, keeping logged in');
+          // Try to restore user from localStorage if available
+          const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+          if (savedUser) {
+            try {
+              const userData = JSON.parse(savedUser);
+              dispatch({ type: 'SET_USER', payload: userData });
+            } catch (parseError) {
+              dispatch({ type: 'SET_LOADING', payload: false });
+            }
+          } else {
+            dispatch({ type: 'SET_LOADING', payload: false });
+          }
+        }
       }
     };
     
-    // Set a timeout fallback
+    // Set a timeout fallback - increased to 15 seconds and only logout if no tokens
     timeoutId = setTimeout(() => {
-      console.warn('⏰ AuthContext: Auth check timeout - setting loading to false');
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }, 10000); // Increased to 10 seconds
+      console.warn('⏰ AuthContext: Auth check timeout - checking tokens before setting loading state');
+      const accessToken = apiService.getAuthToken();
+      const refreshToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+      const savedUser = localStorage.getItem(USER_STORAGE_KEY);
+      
+      if (accessToken || refreshToken) {
+        if (savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            console.log('📱 AuthContext: Timeout but tokens exist, restoring user');
+            dispatch({ type: 'SET_USER', payload: userData });
+            return;
+          } catch (parseError) {
+            console.error('🚫 AuthContext: Failed to parse saved user data on timeout');
+          }
+        }
+        console.log('📱 AuthContext: Timeout but tokens exist, just stop loading');
+        dispatch({ type: 'SET_LOADING', payload: false });
+      } else {
+        console.log('❌ AuthContext: Timeout and no tokens, setting loading to false');
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    }, 15000); // Increased to 15 seconds
     
     performAuthCheck().finally(() => {
       console.log('🏁 AuthContext: Auth check finished, clearing timeout');

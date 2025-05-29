@@ -257,14 +257,14 @@ const DashboardSidebar: React.FC<SidebarProps> = ({ className = '', healthData }
               <div className="footer-user">
                 <div className="flex items-center gap-3 mb-3 p-3 bg-white/50 rounded-xl border border-gray-200/50">
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                    {user.username.charAt(0).toUpperCase()}
+                    {user.username && user.username.length > 0 ? user.username.charAt(0).toUpperCase() : '?'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">
-                      {user.profile?.full_name || user.username}
+                      {user.profile?.full_name || user.username || 'Anonymous'}
                     </div>
                     <div className="text-xs text-gray-500 truncate">
-                      {user.email}
+                      {user.email || 'No email'}
                     </div>
                   </div>
                 </div>
@@ -280,7 +280,7 @@ const DashboardSidebar: React.FC<SidebarProps> = ({ className = '', healthData }
                     style={{ backgroundColor: getHealthStatusColor(healthData.status) }}
                   ></div>
                   <span className="footer-health-label">
-                    System: {healthData.status.toUpperCase()}
+                    System: {healthData.status ? healthData.status.toUpperCase() : 'UNKNOWN'}
                   </span>
                 </div>
                 <div className="footer-health-details">

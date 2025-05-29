@@ -45,7 +45,6 @@ class DatabaseSettings(BaseSettings):
     
     class Config:
         env_file = ".env"
-        env_prefix = "POSTGRES_"
         extra = "ignore"  # Ignore extra fields from .env file
 
 
