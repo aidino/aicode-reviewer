@@ -15,9 +15,11 @@ import {
   Zap,
   Bell,
   Code,
-  Database
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import Layout from '../components/Layout';
+import { apiService } from '../services/api';
 
 interface Repository {
   id: string;
@@ -32,6 +34,19 @@ interface Repository {
   health_score: number;
   issues_count: number;
   status: 'active' | 'archived' | 'private';
+  // New fields from API
+  avatar_url?: string;
+  default_branch?: string;
+  is_private: boolean;
+  owner_id: number;
+  created_at: string;
+  updated_at: string;
+  last_synced_at?: string;
+  cached_path?: string;
+  last_commit_hash?: string;
+  cache_expires_at?: string;
+  cache_size_mb?: number;
+  auto_sync_enabled?: boolean;
   // Configuration settings
   config: {
     llm_model: string;
@@ -51,6 +66,8 @@ const RepositoryManagement: React.FC = () => {
   const [repository, setRepository] = useState<Repository | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   
   const isNewRepo = id === 'new';
@@ -71,6 +88,10 @@ const RepositoryManagement: React.FC = () => {
         health_score: 0,
         issues_count: 0,
         status: 'active',
+        is_private: false,
+        owner_id: 0,
+        created_at: '',
+        updated_at: '',
         config: {
           llm_model: 'gpt-4',
           scan_frequency: 'daily',
@@ -84,21 +105,55 @@ const RepositoryManagement: React.FC = () => {
       });
       setLoading(false);
     } else {
-      // Mock data - trong thực tế sẽ fetch từ API
-      setTimeout(() => {
-        setRepository({
-          id: id || '',
-          name: 'acme/frontend-app',
-          url: 'https://github.com/acme/frontend-app',
-          description: 'Main frontend application built with React and TypeScript',
-          language: 'TypeScript',
-          stars: 342,
-          forks: 89,
-          last_scan: '2025-01-28T10:30:00Z',
-          scan_count: 89,
-          health_score: 92,
-          issues_count: 12,
-          status: 'active',
+      fetchRepositoryDetail();
+    }
+  }, [id, isNewRepo]);
+
+  const fetchRepositoryDetail = async () => {
+    if (!id) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`🔍 Fetching repository detail for ID: ${id}`);
+      const response = await apiService.getRepositoryDetail(id);
+      
+      if (response.error) {
+        console.error('❌ Failed to fetch repository detail:', response.error);
+        setError(response.error.detail || 'Không thể tải thông tin repository');
+        setRepository(null);
+      } else {
+        console.log('✅ Repository detail fetched:', response.data);
+        
+        // Convert API response to frontend Repository format
+        const apiRepo = response.data;
+        const frontendRepo: Repository = {
+          id: apiRepo.id.toString(),
+          name: apiRepo.name,
+          url: apiRepo.url,
+          description: apiRepo.description,
+          language: apiRepo.language || 'Unknown',
+          stars: apiRepo.stars || 0,
+          forks: apiRepo.forks || 0,
+          last_scan: apiRepo.last_synced_at,
+          scan_count: 0, // TODO: Calculate from actual scans
+          health_score: 85, // TODO: Calculate from actual metrics
+          issues_count: 0, // TODO: Calculate from actual findings
+          status: apiRepo.is_private ? 'private' : 'active',
+          // API fields
+          avatar_url: apiRepo.avatar_url,
+          default_branch: apiRepo.default_branch,
+          is_private: apiRepo.is_private,
+          owner_id: apiRepo.owner_id,
+          created_at: apiRepo.created_at,
+          updated_at: apiRepo.updated_at,
+          last_synced_at: apiRepo.last_synced_at,
+          cached_path: apiRepo.cached_path,
+          last_commit_hash: apiRepo.last_commit_hash,
+          cache_expires_at: apiRepo.cache_expires_at,
+          cache_size_mb: apiRepo.cache_size_mb,
+          auto_sync_enabled: apiRepo.auto_sync_enabled,
           config: {
             llm_model: 'gpt-4',
             scan_frequency: 'daily',
@@ -107,13 +162,46 @@ const RepositoryManagement: React.FC = () => {
             security_scan: true,
             code_quality_check: true,
             dependency_scan: true,
-            custom_rules: ['no-console', 'prefer-const']
+            custom_rules: []
           }
-        });
-        setLoading(false);
-      }, 500);
+        };
+        
+        setRepository(frontendRepo);
+      }
+    } catch (err) {
+      console.error('💥 Error fetching repository detail:', err);
+      setError('Lỗi không mong đợi khi tải thông tin repository');
+    } finally {
+      setLoading(false);
     }
-  }, [id, isNewRepo]);
+  };
+
+  const handleUpdateLatest = async () => {
+    if (!repository || !id) return;
+    
+    setUpdating(true);
+    setError(null);
+    
+    try {
+      console.log(`🔄 Updating latest for repository ID: ${id}`);
+      const response = await apiService.updateRepositoryLatest(id);
+      
+      if (response.error) {
+        console.error('❌ Failed to update repository:', response.error);
+        setError(response.error.detail || 'Không thể cập nhật repository');
+      } else {
+        console.log('✅ Repository updated successfully:', response.data);
+        
+        // Refresh the repository data
+        await fetchRepositoryDetail();
+      }
+    } catch (err) {
+      console.error('💥 Error updating repository:', err);
+      setError('Lỗi không mong đợi khi cập nhật repository');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!repository) return;
@@ -226,18 +314,34 @@ const RepositoryManagement: React.FC = () => {
       <Layout showFloatingButton={false}>
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <motion.div
-            className="card-soft p-8 text-center"
+            className="card-soft p-8 text-center max-w-md"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">Repository không tìm thấy</h2>
-            <button 
-              onClick={() => navigate('/dashboard')}
-              className="btn-soft btn-soft-primary"
-            >
-              <ArrowLeft size={16} />
-              Quay lại Dashboard
-            </button>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">
+              {error ? 'Lỗi tải Repository' : 'Repository không tìm thấy'}
+            </h2>
+            {error && (
+              <p className="text-red-600 mb-4">{error}</p>
+            )}
+            <div className="flex gap-3 justify-center">
+              <button 
+                onClick={() => navigate('/dashboard')}
+                className="btn-soft btn-soft-outline"
+              >
+                <ArrowLeft size={16} />
+                Quay lại Dashboard
+              </button>
+              {error && (
+                <button 
+                  onClick={() => fetchRepositoryDetail()}
+                  className="btn-soft btn-soft-primary"
+                >
+                  <RefreshCw size={16} />
+                  Thử lại
+                </button>
+              )}
+            </div>
           </motion.div>
         </div>
       </Layout>
@@ -248,6 +352,28 @@ const RepositoryManagement: React.FC = () => {
     <Layout showFloatingButton={false}>
       <div className="min-h-screen bg-gray-50">
         <div className="p-6">
+          {/* Error Banner */}
+          {error && (
+            <motion.div
+              className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="text-red-600">⚠️</div>
+                  <span className="text-red-800">{error}</span>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-600 hover:text-red-800"
+                >
+                  ✕
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {/* Header */}
           <motion.div
             className="mb-8"
@@ -275,18 +401,44 @@ const RepositoryManagement: React.FC = () => {
                      isEditMode ? 'Cập nhật thông tin và cấu hình' :
                      'Xem thông tin chi tiết và cấu hình'}
                   </p>
+                  {/* Repository sync info */}
+                  {!isNewRepo && repository.last_synced_at && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      🔄 Cập nhật lần cuối: {new Date(repository.last_synced_at).toLocaleString('vi-VN')}
+                      {repository.cached_path && ` • 📁 Cached (${repository.cache_size_mb?.toFixed(1) || 0}MB)`}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
                 {!isNewRepo && isViewMode && (
-                  <button
-                    onClick={() => navigate(`/repositories/${id}/edit`)}
-                    className="btn-soft btn-soft-outline"
-                  >
-                    <Edit size={16} />
-                    Chỉnh sửa
-                  </button>
+                  <>
+                    <button
+                      onClick={handleUpdateLatest}
+                      disabled={updating}
+                      className="btn-soft btn-soft-success flex items-center gap-2"
+                    >
+                      {updating ? (
+                        <>
+                          <div className="loading-spinner w-4 h-4"></div>
+                          Đang cập nhật...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={16} />
+                          Update Latest
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => navigate(`/repositories/${id}/edit`)}
+                      className="btn-soft btn-soft-outline"
+                    >
+                      <Edit size={16} />
+                      Chỉnh sửa
+                    </button>
+                  </>
                 )}
                 
                 {isEditMode && (
@@ -315,6 +467,41 @@ const RepositoryManagement: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Information */}
             <div className="lg:col-span-2 space-y-6">
+              {/* Repository Statistics - Only show in view mode */}
+              {isViewMode && (
+                <motion.div
+                  className="grid grid-cols-1 md:grid-cols-4 gap-4"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 }}
+                >
+                  <div className="card-soft text-center">
+                    <div className="card-soft-body py-4">
+                      <div className="text-2xl font-bold text-blue-600">{repository.health_score}/100</div>
+                      <div className="text-sm text-gray-600">Health Score</div>
+                    </div>
+                  </div>
+                  <div className="card-soft text-center">
+                    <div className="card-soft-body py-4">
+                      <div className="text-2xl font-bold text-green-600">{repository.scan_count}</div>
+                      <div className="text-sm text-gray-600">Total Scans</div>
+                    </div>
+                  </div>
+                  <div className="card-soft text-center">
+                    <div className="card-soft-body py-4">
+                      <div className="text-2xl font-bold text-orange-600">{repository.issues_count}</div>
+                      <div className="text-sm text-gray-600">Open Issues</div>
+                    </div>
+                  </div>
+                  <div className="card-soft text-center">
+                    <div className="card-soft-body py-4">
+                      <div className="text-2xl font-bold text-purple-600">{repository.stars}</div>
+                      <div className="text-sm text-gray-600">GitHub Stars</div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Basic Information */}
               <motion.div
                 className="card-soft"
@@ -442,6 +629,78 @@ const RepositoryManagement: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* Additional Repository Information - Only show in view mode */}
+                  {isViewMode && (
+                    <div className="space-y-4 border-t border-gray-200 pt-6">
+                      <h4 className="font-medium text-gray-900">📊 Repository Statistics</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-600">Default Branch</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            {repository.default_branch || 'main'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-600">Stars</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            ⭐ {repository.stars.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-600">Forks</span>
+                          <span className="text-sm font-medium text-gray-900">
+                            🍴 {repository.forks.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-600">Visibility</span>
+                          <span className={`text-sm font-medium ${repository.is_private ? 'text-orange-600' : 'text-green-600'}`}>
+                            {repository.is_private ? '🔒 Private' : '🌍 Public'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm text-gray-600">Auto Sync</span>
+                          <span className={`text-sm font-medium ${repository.auto_sync_enabled ? 'text-green-600' : 'text-gray-600'}`}>
+                            {repository.auto_sync_enabled ? '✅ Enabled' : '⏸️ Disabled'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <div className="text-sm text-gray-600 mb-1">Tạo lúc</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            📅 {new Date(repository.created_at).toLocaleString('vi-VN')}
+                          </div>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <div className="text-sm text-gray-600 mb-1">Cập nhật lần cuối</div>
+                          <div className="text-sm font-medium text-gray-900">
+                            🔄 {new Date(repository.updated_at).toLocaleString('vi-VN')}
+                          </div>
+                        </div>
+                      </div>
+
+                      {repository.cached_path && (
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-sm text-blue-600 mb-1">📁 Smart Cache Information</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-blue-800">
+                            <div>Cache Size: {repository.cache_size_mb?.toFixed(1) || 0}MB</div>
+                            <div>Last Commit: {repository.last_commit_hash?.substring(0, 7) || 'N/A'}</div>
+                            {repository.cache_expires_at && (
+                              <div className="md:col-span-2">
+                                Expires: {new Date(repository.cache_expires_at).toLocaleString('vi-VN')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
@@ -581,6 +840,59 @@ const RepositoryManagement: React.FC = () => {
                     </div>
                   </div>
                 </motion.div>
+
+                {/* Recent Scans - Only show in view mode */}
+                {isViewMode && (
+                  <motion.div
+                    className="card-soft"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.5, delay: 0.4 }}
+                  >
+                    <div className="card-soft-header">
+                      <h3 className="text-lg font-semibold text-gray-900">🔍 Recent Scans</h3>
+                    </div>
+                    <div className="card-soft-body space-y-3">
+                      {/* Mock scan data */}
+                      {[
+                        { id: '1', date: '2025-01-29', status: 'completed', issues: 5, duration: '2m 30s' },
+                        { id: '2', date: '2025-01-28', status: 'completed', issues: 8, duration: '1m 45s' },
+                        { id: '3', date: '2025-01-27', status: 'failed', issues: 0, duration: '0m 15s' },
+                        { id: '4', date: '2025-01-26', status: 'completed', issues: 3, duration: '2m 10s' },
+                      ].map((scan) => (
+                        <div key={scan.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${
+                              scan.status === 'completed' ? 'bg-green-500' :
+                              scan.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
+                            }`}></div>
+                            <div>
+                              <div className="text-sm font-medium text-gray-900">{scan.date}</div>
+                              <div className="text-xs text-gray-500">{scan.duration}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-gray-900">
+                              {scan.status === 'completed' ? `${scan.issues} issues` : 
+                               scan.status === 'failed' ? 'Failed' : 'Running'}
+                            </div>
+                            <div className={`text-xs capitalize ${
+                              scan.status === 'completed' ? 'text-green-600' :
+                              scan.status === 'failed' ? 'text-red-600' : 'text-yellow-600'
+                            }`}>
+                              {scan.status}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* View All Scans Button */}
+                      <button className="w-full text-center py-2 text-sm text-blue-600 hover:text-blue-800 transition-colors">
+                        View All Scans →
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             )}
           </div>

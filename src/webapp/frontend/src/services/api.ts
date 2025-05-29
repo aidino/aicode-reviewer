@@ -1,7 +1,8 @@
 /**
- * API service for communicating with the AI Code Reviewer backend.
+ * API Service cho AI Code Reviewer
  * 
- * This service provides methods to interact with the FastAPI backend endpoints.
+ * Service này xử lý tất cả các HTTP requests tới backend API 
+ * bằng cách sử dụng native fetch API thay vì axios.
  */
 
 import {
@@ -24,15 +25,122 @@ import {
   UpdateProfileRequest
 } from '../types';
 
-// API configuration
+// Base URL for API calls
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000';
 
+// Interceptor để thêm token authorization vào header
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  }
+  return {
+    'Content-Type': 'application/json',
+  };
+};
+
+// Mock data cho môi trường phát triển
+const useMockData = import.meta.env.MODE === 'development';
+
+// Tạo mock repositories để phát triển
+const mockRepositories = [
+  {
+    id: '1',
+    name: 'AI Code Reviewer',
+    description: 'AI-powered code review tool that helps developers identify bugs and improve code quality.',
+    url: 'https://github.com/example/aicode-reviewer',
+    owner: {
+      name: 'example-org',
+      avatar_url: 'https://avatars.githubusercontent.com/u/12345678'
+    },
+    language: 'Python',
+    stars: 1250,
+    forks: 85,
+    issues: 12,
+    created_at: '2023-06-15T00:00:00Z',
+    updated_at: '2024-05-01T12:34:56Z',
+    default_branch: 'main',
+    is_private: false,
+    languages: {
+      'Python': 65,
+      'TypeScript': 25,
+      'JavaScript': 10
+    },
+    cached_path: '/cache/repositories/1',
+    last_commit_hash: '8f7e9d6c2a1b5f3e4d8c7b6a5f4e3d2c1b0a9f8e',
+    cache_expires_at: '2024-06-01T00:00:00Z',
+    cache_size_mb: 85.4
+  },
+  // Thêm mock repositories khác nếu cần
+];
+
+// Mock branches
+const mockBranches = [
+  { name: 'main', lastCommit: '8f7e9d6c2a1b', updatedAt: '2024-05-01T12:34:56Z' },
+  { name: 'develop', lastCommit: '5e3d2c1b0a9f', updatedAt: '2024-05-01T10:20:30Z' },
+  { name: 'feature/new-ui', lastCommit: 'c1b0a9f8e7d6', updatedAt: '2024-04-25T08:15:20Z' },
+];
+
+// Mock pull requests
+const mockPRs = [
+  { id: 101, number: 42, title: 'Add new repository dashboard', author: 'user1', updatedAt: '2024-05-01T11:22:33Z' },
+  { id: 102, number: 41, title: 'Fix security vulnerabilities', author: 'user2', updatedAt: '2024-04-29T09:18:27Z' },
+  { id: 103, number: 40, title: 'Optimize database queries', author: 'user3', updatedAt: '2024-04-28T14:05:16Z' },
+];
+
+// Mock recent scans
+const mockRecentScans = [
+  { 
+    id: 's1', 
+    created_at: '2024-05-01T14:30:00Z', 
+    scan_type: 'full', 
+    branch: 'main', 
+    status: 'completed' 
+  },
+  { 
+    id: 's2', 
+    created_at: '2024-04-30T11:15:00Z', 
+    scan_type: 'pr', 
+    pr_number: '41',
+    branch: 'fix-security', 
+    status: 'completed' 
+  },
+  { 
+    id: 's3', 
+    created_at: '2024-04-30T10:00:00Z', 
+    scan_type: 'pr', 
+    pr_number: '40',
+    branch: 'optimize-db', 
+    status: 'failed' 
+  },
+  { 
+    id: 's4', 
+    created_at: '2024-05-02T09:20:00Z', 
+    scan_type: 'full', 
+    branch: 'develop', 
+    status: 'in-progress' 
+  }
+];
+
+interface ApiOptions {
+  baseURL?: string;
+  headers?: Record<string, string>;
+}
+
 class ApiService {
-  private baseUrl: string;
+  private baseURL: string;
+  private headers: Record<string, string>;
   private authToken: string | null = null;
 
-  constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+  constructor(options: ApiOptions = {}) {
+    this.baseURL = options.baseURL || API_BASE_URL;
+    this.headers = {
+      'Content-Type': 'application/json',
+      ...options.headers
+    };
     // Khôi phục token từ localStorage khi khởi tạo
     this.authToken = localStorage.getItem('access_token');
   }
@@ -63,82 +171,142 @@ class ApiService {
   }
 
   /**
-   * Generic fetch wrapper with error handling.
-   * 
-   * Args:
-   *   endpoint: API endpoint path
-   *   options: Fetch options
-   * 
-   * Returns:
-   *   Promise<ApiResponse<T>>: API response wrapper
+   * Sends a GET request to the specified endpoint
    */
-  private async fetchWithErrorHandling<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
+  async get(endpoint: string) {
     try {
-      const url = `${this.baseUrl}${endpoint}`;
+      const url = this.baseURL + endpoint;
       
       console.log('🌐 [API] Making request to:', url);
-      console.log('📊 [API] Method:', options.method || 'GET');
       console.log('🔑 [API] Has auth token:', !!this.authToken);
       
-      const defaultHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Thêm Authorization header nếu có token
-      if (this.authToken) {
-        defaultHeaders['Authorization'] = `Bearer ${this.authToken}`;
-      }
-
-      console.log('📋 [API] Headers:', JSON.stringify(defaultHeaders, null, 2));
-      if (options.body) {
-        console.log('📦 [API] Request body:', options.body);
-      }
-
       const response = await fetch(url, {
-        ...options,
+        method: 'GET',
         headers: {
-          ...defaultHeaders,
-          ...options.headers,
+          ...this.headers,
+          ...(this.authToken && { Authorization: `Bearer ${this.authToken}` })
+        }
+      });
+      
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * Sends a POST request to the specified endpoint
+   */
+  async post(endpoint: string, data: any) {
+    try {
+      const url = this.baseURL + endpoint;
+      
+      console.log('🌐 [API] Making request to:', url);
+      console.log('📦 [API] Request body:', data);
+      console.log('🔑 [API] Has auth token:', !!this.authToken);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          ...(this.authToken && { Authorization: `Bearer ${this.authToken}` })
         },
+        body: JSON.stringify(data)
       });
 
-      console.log('📈 [API] Response status:', response.status);
-      console.log('✅ [API] Response ok:', response.ok);
-
-      if (!response.ok) {
-        let errorDetail = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          console.error('❌ [API] Error response data:', errorData);
-          errorDetail = errorData.detail || errorDetail;
-        } catch {
-          // If we can't parse the error, use the status text
-          errorDetail = response.statusText || errorDetail;
-        }
-
-        const apiError: ApiError = {
-          detail: errorDetail,
-          status_code: response.status,
-        };
-
-        console.error('❌ [API] Returning error:', apiError);
-        return { error: apiError };
-      }
-
-      const data = await response.json();
-      console.log('✅ [API] Success response data:', data);
-      return { data };
+      return this.handleResponse(response);
     } catch (error) {
-      console.error('💥 [API] Fetch error:', error);
-      const apiError: ApiError = {
-        detail: error instanceof Error ? error.message : 'Unknown error occurred',
-        status_code: 0,
-      };
-      return { error: apiError };
+      return this.handleError(error);
     }
+  }
+
+  /**
+   * Sends a PUT request to the specified endpoint
+   */
+  async put(endpoint: string, data: any) {
+    try {
+      const url = this.baseURL + endpoint;
+      
+      console.log('🌐 [API] Making request to:', url);
+      console.log('📦 [API] Request body:', data);
+      console.log('🔑 [API] Has auth token:', !!this.authToken);
+      
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          ...this.headers,
+          ...(this.authToken && { Authorization: `Bearer ${this.authToken}` })
+        },
+        body: JSON.stringify(data)
+      });
+
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * Sends a DELETE request to the specified endpoint
+   */
+  async delete(endpoint: string) {
+    try {
+      const url = this.baseURL + endpoint;
+      
+      console.log('🌐 [API] Making request to:', url);
+      console.log('🔑 [API] Has auth token:', !!this.authToken);
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          ...this.headers,
+          ...(this.authToken && { Authorization: `Bearer ${this.authToken}` })
+        }
+      });
+
+      return this.handleResponse(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
+  }
+
+  /**
+   * Handle the response from the API
+   */
+  private async handleResponse(response: Response) {
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        data,
+        status: response.status,
+      };
+    }
+
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch (e) {
+      errorData = {
+        message: response.statusText
+      };
+    }
+
+    return Promise.reject({
+      status: response.status,
+      message: errorData.message || 'An error occurred',
+      details: errorData
+    });
+  }
+
+  /**
+   * Handle errors that occur during the API call
+   */
+  private handleError(error: any) {
+    return Promise.reject({
+      status: 0,
+      message: error.message || 'Network error',
+      details: error
+    });
   }
 
   /**
@@ -157,7 +325,7 @@ class ApiService {
       offset: offset.toString(),
     });
     
-    return this.fetchWithErrorHandling<ScanListItem[]>(`/api/scans/?${params}`);
+    return this.get(`/api/scans/?${params}`);
   }
 
   /**
@@ -167,7 +335,10 @@ class ApiService {
    *   Promise<ApiResponse<RepositoryListResponse>>: List of user repositories with statistics
    */
   async getRepositories(): Promise<ApiResponse<any>> {
-    return this.fetchWithErrorHandling<any>(`/api/repositories/`);
+    if (useMockData) {
+      return Promise.resolve({ data: mockRepositories });
+    }
+    return this.get('/api/repositories/');
   }
 
   /**
@@ -186,10 +357,53 @@ class ApiService {
       ...(accessToken && { access_token: accessToken })
     };
 
-    return this.fetchWithErrorHandling<any>(`/api/repositories/`, {
-      method: 'POST',
-      body: JSON.stringify(requestBody),
-    });
+    if (useMockData) {
+      const newRepo = { 
+        ...mockRepositories[0],
+        id: Date.now().toString(),
+        name: requestBody.repo_url.split('/').pop() || 'New Repository',
+        url: requestBody.repo_url
+      };
+      return Promise.resolve({ data: newRepo });
+    }
+    return this.post('/api/repositories/', requestBody);
+  }
+
+  /**
+   * Get detailed information for a specific repository.
+   * 
+   * Args:
+   *   repositoryId: Repository ID
+   * 
+   * Returns:
+   *   Promise<ApiResponse<any>>: Repository detail data
+   */
+  async getRepositoryDetail(repositoryId: string | number): Promise<ApiResponse<any>> {
+    if (useMockData) {
+      const repo = mockRepositories.find(r => r.id === repositoryId.toString());
+      return Promise.resolve({ data: repo });
+    }
+    return this.get(`/api/repositories/${repositoryId}`);
+  }
+
+  /**
+   * Update repository với metadata và code mới nhất từ remote.
+   * 
+   * Args:
+   *   repositoryId: Repository ID
+   * 
+   * Returns:
+   *   Promise<ApiResponse<any>>: Updated repository data
+   */
+  async updateRepositoryLatest(repositoryId: string | number): Promise<ApiResponse<any>> {
+    if (useMockData) {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve({ data: { message: 'Repository updated successfully' } });
+        }, 1500);
+      });
+    }
+    return this.post(`/api/repositories/${repositoryId}/update-latest`, {});
   }
 
   /**
@@ -211,7 +425,7 @@ class ApiService {
       };
     }
 
-    return this.fetchWithErrorHandling<ReportDetail>(`/api/scans/${encodeURIComponent(scanId)}/report`);
+    return this.get(`/api/scans/${encodeURIComponent(scanId)}/report`);
   }
 
   /**
@@ -237,7 +451,7 @@ class ApiService {
       };
     }
 
-    return this.fetchWithErrorHandling(`/api/scans/${encodeURIComponent(scanId)}/status`);
+    return this.get(`/api/scans/${encodeURIComponent(scanId)}/status`);
   }
 
   /**
@@ -250,10 +464,7 @@ class ApiService {
    *   Promise<ApiResponse<ScanResponse>>: Created scan response
    */
   async createScan(scanRequest: ScanRequest): Promise<ApiResponse<ScanResponse>> {
-    return this.fetchWithErrorHandling<ScanResponse>('/api/scans/', {
-      method: 'POST',
-      body: JSON.stringify(scanRequest),
-    });
+    return this.post('/api/scans/', scanRequest);
   }
 
   /**
@@ -275,9 +486,7 @@ class ApiService {
       };
     }
 
-    return this.fetchWithErrorHandling(`/api/scans/${encodeURIComponent(scanId)}`, {
-      method: 'DELETE',
-    });
+    return this.delete(`/api/scans/${encodeURIComponent(scanId)}`);
   }
 
   /**
@@ -287,7 +496,7 @@ class ApiService {
    *   Promise<ApiResponse<{status: string, service: string}>>: Health status
    */
   async checkHealth(): Promise<ApiResponse<{ status: string; service: string }>> {
-    return this.fetchWithErrorHandling('/health');
+    return this.get('/health');
   }
 
   // Authentication Methods
@@ -314,10 +523,15 @@ class ApiService {
       password: credentials.password ? '••••••••' : '(empty)'
     });
     
-    return this.fetchWithErrorHandling<LoginResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(loginBody),
-    });
+    if (useMockData) {
+      return Promise.resolve({
+        data: {
+          accessToken: 'mock-access-token',
+          user: { id: 'user1', name: 'User', email: credentials.username }
+        }
+      });
+    }
+    return this.post('/auth/login', loginBody);
   }
 
   /**
@@ -340,10 +554,15 @@ class ApiService {
       password: userData.password ? '••••••••' : '(empty)'
     });
     
-    return this.fetchWithErrorHandling<LoginResponse>('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
+    if (useMockData) {
+      return Promise.resolve({
+        data: {
+          message: 'User registered successfully',
+          user: { id: 'new-user', name: userData.full_name, email: userData.email }
+        }
+      });
+    }
+    return this.post('/auth/register', userData);
   }
 
   /**
@@ -353,9 +572,7 @@ class ApiService {
    *   Promise<ApiResponse<{message: string}>>: Logout response
    */
   async logout(): Promise<ApiResponse<{ message: string }>> {
-    return this.fetchWithErrorHandling<{ message: string }>('/auth/logout', {
-      method: 'POST',
-    });
+    return this.post('/auth/logout', {});
   }
 
   /**
@@ -365,7 +582,7 @@ class ApiService {
    *   Promise<ApiResponse<User>>: Current user data
    */
   async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.fetchWithErrorHandling<User>('/auth/me');
+    return this.get('/auth/me');
   }
 
   /**
@@ -378,10 +595,7 @@ class ApiService {
    *   Promise<ApiResponse<User>>: Updated user data
    */
   async updateProfile(updates: UpdateProfileRequest): Promise<ApiResponse<User>> {
-    return this.fetchWithErrorHandling<User>('/auth/me', {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
+    return this.put('/auth/me', updates);
   }
 
   /**
@@ -394,10 +608,7 @@ class ApiService {
    *   Promise<ApiResponse<AuthTokens>>: New tokens
    */
   async refreshToken(refreshData: RefreshTokenRequest): Promise<ApiResponse<AuthTokens>> {
-    return this.fetchWithErrorHandling<AuthTokens>('/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify(refreshData),
-    });
+    return this.post('/auth/refresh', refreshData);
   }
 
   /**
@@ -410,10 +621,7 @@ class ApiService {
    *   Promise<ApiResponse<{message: string}>>: Password change response
    */
   async changePassword(passwords: ChangePasswordRequest): Promise<ApiResponse<{ message: string }>> {
-    return this.fetchWithErrorHandling<{ message: string }>('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify(passwords),
-    });
+    return this.post('/auth/change-password', passwords);
   }
 
   /**
@@ -423,7 +631,7 @@ class ApiService {
    *   Promise<ApiResponse<UserSession[]>>: List of user sessions
    */
   async getUserSessions(): Promise<ApiResponse<UserSession[]>> {
-    return this.fetchWithErrorHandling<UserSession[]>('/auth/sessions');
+    return this.get('/auth/sessions');
   }
 
   /**
@@ -436,9 +644,7 @@ class ApiService {
    *   Promise<ApiResponse<{message: string}>>: Revoke response
    */
   async revokeSession(sessionId: string): Promise<ApiResponse<{ message: string }>> {
-    return this.fetchWithErrorHandling<{ message: string }>(`/auth/sessions/${sessionId}`, {
-      method: 'DELETE',
-    });
+    return this.delete(`/auth/sessions/${sessionId}`);
   }
 
   /**
@@ -448,9 +654,7 @@ class ApiService {
    *   Promise<ApiResponse<{message: string}>>: Revoke response
    */
   async revokeAllSessions(): Promise<ApiResponse<{ message: string }>> {
-    return this.fetchWithErrorHandling<{ message: string }>('/auth/sessions', {
-      method: 'DELETE',
-    });
+    return this.delete('/auth/sessions');
   }
 }
 

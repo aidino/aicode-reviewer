@@ -4,6 +4,110 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { vi, describe, test, beforeEach, expect } from 'vitest';
 import Dashboard from '../Dashboard';
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from '../../contexts/AuthContext';
+import { SidebarProvider } from '../../contexts/SidebarContext';
+
+// Mock modules
+vi.mock('../../services/api', () => ({
+  apiService: {
+    getDashboardSummary: vi.fn().mockResolvedValue({
+      data: {
+        // Mocked dashboard data
+        time_range: 'LAST_30_DAYS',
+        generated_at: '2025-01-29T10:00:00Z',
+        scan_metrics: {
+          total_scans: 150,
+          active_scans: 3,
+          completed_scans: 145,
+          failed_scans: 2,
+          avg_scan_duration: 180,
+          scans_by_type: {},
+          scans_by_status: {}
+        },
+        findings_metrics: {
+          total_findings: 523,
+          avg_findings_per_scan: 3.5,
+          findings_by_severity: {},
+          findings_by_category: {},
+          top_rules: []
+        },
+        repository_metrics: {
+          total_repositories: 12,
+          most_scanned_repos: [],
+          languages_analyzed: {},
+          avg_repository_health: 85
+        },
+        xai_metrics: {
+          total_xai_analyses: 145,
+          avg_confidence_score: 0.87,
+          confidence_distribution: {},
+          reasoning_quality_score: 4.2
+        },
+        findings_trend: {
+          total_findings: [],
+          severity_trends: {},
+          category_trends: {}
+        },
+        recent_scans: [],
+        recent_findings: [],
+        system_health: {
+          status: 'healthy',
+          scan_success_rate: 96.7,
+          avg_response_time: '1.2s',
+          error_rate: 0.033,
+          uptime: '99.9%',
+          last_updated: '2025-01-29T10:00:00Z'
+        }
+      }
+    }),
+    getRepositories: vi.fn().mockResolvedValue({
+      data: {
+        repositories: [
+          {
+            id: 1,
+            name: 'test-repo-1',
+            url: 'https://github.com/user/test-repo-1',
+            description: 'First test repository',
+            language: 'TypeScript',
+            stars: 45,
+            forks: 12,
+            last_synced_at: '2025-01-29T08:00:00Z',
+            is_private: false
+          },
+          {
+            id: 2,
+            name: 'test-repo-2',
+            url: 'https://github.com/user/test-repo-2',
+            description: 'Second test repository',
+            language: 'Python',
+            stars: 23,
+            forks: 8,
+            last_synced_at: '2025-01-28T15:30:00Z',
+            is_private: true
+          }
+        ],
+        total_count: 2,
+        summary: {
+          languages: {
+            'TypeScript': 1,
+            'Python': 1
+          }
+        }
+      }
+    })
+  }
+}));
+
+// Mock react-router-dom
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 // Mock framer-motion to avoid animation issues in tests
 vi.mock('framer-motion', () => ({
@@ -31,6 +135,17 @@ vi.mock('../../contexts/SidebarContext', () => ({
     toggleSidebar: vi.fn()
   })
 }));
+
+// Test wrapper component
+const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <BrowserRouter>
+    <AuthProvider>
+      <SidebarProvider>
+        {children}
+      </SidebarProvider>
+    </AuthProvider>
+  </BrowserRouter>
+);
 
 describe('Dashboard Repository CRUD Operations', () => {
   beforeEach(() => {
@@ -397,5 +512,173 @@ describe('Dashboard Repository CRUD Operations', () => {
     languages.forEach(lang => {
       expect(screen.getByRole('option', { name: new RegExp(lang) })).toBeInTheDocument();
     });
+  });
+});
+
+describe('Dashboard Repository Row Click Tests', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should navigate to repository detail when clicking on repository row', async () => {
+    render(
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    );
+
+    // Wait for repositories to load
+    await waitFor(() => {
+      expect(screen.getByText('test-repo-1')).toBeInTheDocument();
+    });
+
+    // Find the repository row (look for the container that has both name and click handler)
+    const repoRow = screen.getByText('test-repo-1').closest('div[style*="marginBottom"]');
+    expect(repoRow).toBeInTheDocument();
+
+    // Click on the repository row
+    fireEvent.click(repoRow!);
+
+    // Verify navigation was called with correct repository ID
+    expect(mockNavigate).toHaveBeenCalledWith('/repositories/1');
+  });
+
+  it('should navigate to repository detail for different repositories', async () => {
+    render(
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    );
+
+    // Wait for repositories to load
+    await waitFor(() => {
+      expect(screen.getByText('test-repo-2')).toBeInTheDocument();
+    });
+
+    // Find the second repository row
+    const repoRow = screen.getByText('test-repo-2').closest('div[style*="marginBottom"]');
+    expect(repoRow).toBeInTheDocument();
+
+    // Click on the repository row
+    fireEvent.click(repoRow!);
+
+    // Verify navigation was called with correct repository ID
+    expect(mockNavigate).toHaveBeenCalledWith('/repositories/2');
+  });
+
+  it('should not navigate when clicking on action buttons', async () => {
+    render(
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    );
+
+    // Wait for repositories to load
+    await waitFor(() => {
+      expect(screen.getByText('test-repo-1')).toBeInTheDocument();
+    });
+
+    // Find action buttons (Eye icon for view, Edit icon for edit)
+    const actionButtons = screen.getAllByRole('button');
+    const viewButton = actionButtons.find(button => 
+      button.getAttribute('title') === 'Xem repository'
+    );
+    const editButton = actionButtons.find(button => 
+      button.getAttribute('title') === 'Chỉnh sửa repository'
+    );
+
+    expect(viewButton).toBeInTheDocument();
+    expect(editButton).toBeInTheDocument();
+
+    // Clear previous navigation calls
+    mockNavigate.mockClear();
+
+    // Click on view button - should navigate to repository detail
+    fireEvent.click(viewButton!);
+    expect(mockNavigate).toHaveBeenCalledWith('/repositories/1');
+
+    // Clear navigation calls
+    mockNavigate.mockClear();
+
+    // Click on edit button - should navigate to repository edit
+    fireEvent.click(editButton!);
+    expect(mockNavigate).toHaveBeenCalledWith('/repositories/1/edit');
+  });
+
+  it('should prevent row click navigation when clicking inside action buttons', async () => {
+    render(
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    );
+
+    // Wait for repositories to load
+    await waitFor(() => {
+      expect(screen.getByText('test-repo-1')).toBeInTheDocument();
+    });
+
+    // Find the delete button
+    const actionButtons = screen.getAllByRole('button');
+    const deleteButton = actionButtons.find(button => 
+      button.getAttribute('title') === 'Xoá repository'
+    );
+
+    expect(deleteButton).toBeInTheDocument();
+
+    // Clear previous navigation calls
+    mockNavigate.mockClear();
+
+    // Click on delete button - should not trigger row navigation
+    fireEvent.click(deleteButton!);
+
+    // Navigate should not be called for row click, only specific button action
+    // The delete button doesn't navigate, it just sets delete confirmation state
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('should show repository details with correct information', async () => {
+    render(
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    );
+
+    // Wait for repositories to load
+    await waitFor(() => {
+      expect(screen.getByText('test-repo-1')).toBeInTheDocument();
+      expect(screen.getByText('test-repo-2')).toBeInTheDocument();
+    });
+
+    // Check repository information is displayed correctly
+    expect(screen.getByText('First test repository')).toBeInTheDocument();
+    expect(screen.getByText('Second test repository')).toBeInTheDocument();
+    
+    // Check language icons and names are displayed
+    expect(screen.getByText('TypeScript')).toBeInTheDocument();
+    expect(screen.getByText('Python')).toBeInTheDocument();
+    
+    // Check stars count is displayed
+    expect(screen.getByText('45')).toBeInTheDocument(); // stars for repo 1
+    expect(screen.getByText('23')).toBeInTheDocument(); // stars for repo 2
+  });
+
+  it('should have proper hover effects on repository rows', async () => {
+    render(
+      <TestWrapper>
+        <Dashboard />
+      </TestWrapper>
+    );
+
+    // Wait for repositories to load
+    await waitFor(() => {
+      expect(screen.getByText('test-repo-1')).toBeInTheDocument();
+    });
+
+    // Find the repository row
+    const repoRow = screen.getByText('test-repo-1').closest('div[style*="marginBottom"]');
+    expect(repoRow).toBeInTheDocument();
+
+    // Check that the row has cursor-pointer class for proper UX
+    expect(repoRow).toHaveClass('cursor-pointer');
   });
 }); 

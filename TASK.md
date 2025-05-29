@@ -301,24 +301,31 @@
   - [x] Update LoginPage để sử dụng clean input design
   - [x] Test UI hoạt động bình thường
 
-### 3.11. Refactor Add Repository Feature (2025-06-11)
-- [ ] Backend: Refactor API /repositories chỉ nhận repo_url, tự động lấy metadata (name, description, language, avatar, ...)
-- [ ] Backend: Hỗ trợ clone repo private qua SSH key đã add trên server
-- [ ] Backend: Lấy metadata qua API public (GitHub/GitLab/Bitbucket) hoặc local parse nếu không có token
-- [ ] Backend: Xử lý lỗi chi tiết (repo không tồn tại, không truy cập được, SSH key thiếu, ...)
-- [x] Backend: Viết unit test cho các trường hợp chính (public, private, lỗi)
-- [x] Backend: **Cập nhật hỗ trợ clone repo private qua Personal Access Token (PAT), không lưu token, chỉ dùng cho lần clone**
-- [x] Backend: **Test clone repo private với PAT thành công**
-- [x] Backend: **Cập nhật docs hướng dẫn sử dụng PAT cho dev**
-- [x] Backend: **Tối ưu bảo mật, không log PAT ra console/log file**
-- [ ] Backend: **(Optional) Tích hợp OAuth/GitHub App cho production**
-- [x] Backend: **Test lại toàn bộ flow với user thật**
-- [x] Frontend: Thêm trường PAT (Personal Access Token, optional) vào form Add Repository
-- [x] Frontend: Bổ sung tooltip/hướng dẫn lấy PAT (link GitHub, quyền tối thiểu, cảnh báo không lưu token)
-- [x] Frontend: Gửi cả repo_url và access_token lên backend khi submit
-- [x] Frontend: Hiển thị thông báo lỗi/thành công rõ ràng (nếu clone thất bại do quyền, PAT sai, ...)
-- [x] Frontend: UX rõ ràng, validate URL và PAT phía client (nếu cần)
-- [x] Frontend: Test lại toàn bộ flow với repo public/private
+### 3.11. Repository Detail with Real Database Data (New - 2025-01-29) ✅ COMPLETED
+- [x] **Backend API Enhancement** (2025-01-29)
+  - [x] Added GET /api/repositories/{id} endpoint để lấy chi tiết repository theo ID
+  - [x] Added POST /api/repositories/{id}/update-latest endpoint để cập nhật metadata mới nhất
+  - [x] Enhanced repository_service.py với add_repository_with_metadata function
+  - [x] Implemented owner permission check để đảm bảo security
+  - [x] Added comprehensive error handling cho các trường hợp không tìm thấy, permission denied
+- [x] **Frontend Integration** (2025-01-29)
+  - [x] Added getRepositoryDetail() và updateRepositoryLatest() functions vào api.ts service
+  - [x] Updated RepositoryManagement component để sử dụng real API thay vì mock data
+  - [x] Implemented real-time data fetching với loading states và error handling
+  - [x] Added "Update Latest" button với loading animation và status feedback
+  - [x] Enhanced repository detail display với real database fields (stars, forks, sync info, cache info)
+  - [x] Added comprehensive error banner và retry functionality
+  - [x] Display repository statistics from database (default branch, visibility, auto-sync status)
+  - [x] Show smart cache information (cache size, last commit hash, expiration)
+  - [x] Added sync timestamp display với Vietnamese locale formatting
+- [x] **User Experience Improvements** (2025-01-29)
+  - [x] Real-time repository sync information hiển thị ở header subtitle  
+  - [x] Error handling với user-friendly messages và retry options
+  - [x] Loading states cho fetch và update operations
+  - [x] Success feedback khi update repository thành công
+  - [x] Repository creation/update timestamps với proper timezone handling
+  - [x] Smart cache status indicator trong repository statistics
+  - [x] Enhanced navigation với proper error states và retry options
 
 ## 🏗️ Infrastructure & Deployment
 

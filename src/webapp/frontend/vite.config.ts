@@ -7,6 +7,7 @@
 
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -36,6 +37,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+      },
+    },
     // Rollup options
     rollupOptions: {
       output: {
@@ -59,7 +66,7 @@ export default defineConfig({
   // Resolve configuration
   resolve: {
     alias: {
-      // Add path aliases if needed
+      '@': path.resolve(__dirname, './src'),
     },
   },
   
@@ -72,7 +79,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
+    setupFiles: ['./src/setupTests.ts'],
     css: true,
   },
 }); 

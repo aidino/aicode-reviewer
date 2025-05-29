@@ -14,6 +14,8 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import Dashboard from './pages/Dashboard';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import RepositoryManagement from './pages/RepositoryManagement';
+import RepositoryDetail from './pages/RepositoryDetail';
 
 // CSS
 import './styles/globals.css';
@@ -41,6 +43,33 @@ const App: React.FC = () => {
                   </ProtectedRoute>
                 } 
               />
+              
+              {/* Repository Management Routes */}
+              <Route 
+                path="/repositories/new" 
+                element={
+                  <ProtectedRoute>
+                    <RepositoryManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/repositories/:id" 
+                element={
+                  <ProtectedRoute>
+                    <RepositoryManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/repositories/:id/edit" 
+                element={
+                  <ProtectedRoute>
+                    <RepositoryManagement />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/repositories/:id" element={<RepositoryDetail />} />
               
               {/* Default redirect */}
               <Route path="/" element={<Navigate to="/dashboard" replace />} />

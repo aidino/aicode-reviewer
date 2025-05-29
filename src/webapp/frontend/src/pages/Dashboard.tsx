@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, TrendingDown, Activity, AlertCircle, CheckCircle, Clock, Users, Bug, Folder, Brain, Plus, GitBranch, Star, Eye, Edit, Trash2, X } from 'lucide-react';
 import Layout from '../components/Layout';
@@ -191,7 +192,7 @@ const Dashboard: React.FC = () => {
     { value: 'LAST_YEAR', label: '1 năm qua' }
   ];
 
-
+  const navigate = useNavigate();
 
   const fetchDashboardData = async (timeRange: string) => {
     try {
@@ -207,20 +208,44 @@ const Dashboard: React.FC = () => {
       console.log('✅ Fetched repositories from API:', repositoriesData);
 
       // Convert API response to frontend Repository format
-      const frontendRepositories: Repository[] = repositoriesData.repositories.map((repo: any) => ({
-        id: repo.id.toString(),
-        name: repo.name,
-        url: repo.url,
-        description: repo.description,
-        language: repo.language || 'Unknown',
-        stars: repo.stars || 0,
-        forks: repo.forks || 0,
-        last_scan: repo.last_synced_at,
-        scan_count: 0, // Default for now, later can be calculated from scans
-        health_score: 85, // Default health score, later can be calculated
-        issues_count: 0, // Default for now, later can be calculated from findings
-        status: repo.is_private ? 'private' : 'active'
-      }));
+      // Kiểm tra cấu trúc response và sử dụng cấu trúc phù hợp
+      let frontendRepositories: Repository[] = [];
+      
+      if (Array.isArray(repositoriesData)) {
+        // Trường hợp response trực tiếp là mảng repositories
+        frontendRepositories = repositoriesData.map((repo: any) => ({
+          id: repo.id.toString(),
+          name: repo.name,
+          url: repo.url,
+          description: repo.description,
+          language: repo.language || 'Unknown',
+          stars: repo.stars || 0,
+          forks: repo.forks || 0,
+          last_scan: repo.last_synced_at,
+          scan_count: 0, // Default for now, later can be calculated from scans
+          health_score: 85, // Default health score, later can be calculated
+          issues_count: 0, // Default for now, later can be calculated from findings
+          status: repo.is_private ? 'private' : 'active'
+        }));
+      } else if (repositoriesData.repositories && Array.isArray(repositoriesData.repositories)) {
+        // Trường hợp response có cấu trúc { repositories: [...], ... }
+        frontendRepositories = repositoriesData.repositories.map((repo: any) => ({
+          id: repo.id.toString(),
+          name: repo.name,
+          url: repo.url,
+          description: repo.description,
+          language: repo.language || 'Unknown',
+          stars: repo.stars || 0,
+          forks: repo.forks || 0,
+          last_scan: repo.last_synced_at,
+          scan_count: 0,
+          health_score: 85,
+          issues_count: 0,
+          status: repo.is_private ? 'private' : 'active'
+        }));
+      } else {
+        console.warn('⚠️ Unexpected repositories data structure:', repositoriesData);
+      }
 
       // Mock data for dashboard statistics (will be replaced with real API later)
       const mockDashboardData: DashboardSummary = {
@@ -249,12 +274,14 @@ const Dashboard: React.FC = () => {
           ]
         },
         repository_metrics: {
-          total_repositories: repositoriesData.total_count, // Use real count from API
+          total_repositories: Array.isArray(repositoriesData) 
+            ? repositoriesData.length 
+            : (repositoriesData.total_count || frontendRepositories.length),
           most_scanned_repos: frontendRepositories.slice(0, 5).map(repo => ({
             repository: repo.name,
             scan_count: repo.scan_count
           })),
-          languages_analyzed: repositoriesData.summary.languages || {},
+          languages_analyzed: repositoriesData.summary?.languages || {},
           avg_repository_health: 87.5
         },
         xai_metrics: {
@@ -374,11 +401,21 @@ const Dashboard: React.FC = () => {
 
   // Navigation handlers for repository actions
   const handleViewRepository = (repo: Repository) => {
-    window.location.href = `/repositories/${repo.id}`;
+    navigate(`/repositories/${repo.id}`);
   };
 
   const handleEditRepository = (repo: Repository) => {
-    window.location.href = `/repositories/${repo.id}/edit`;
+    navigate(`/repositories/${repo.id}/edit`);
+  };
+
+  const handleRowClick = (repo: Repository, event: React.MouseEvent) => {
+    // Prevent row click when clicking on action buttons
+    if ((event.target as HTMLElement).closest('button')) {
+      return;
+    }
+    
+    // Navigate to repository detail page
+    navigate(`/repositories/${repo.id}`);
   };
 
   const handleAddRepository = () => {
@@ -400,20 +437,43 @@ const Dashboard: React.FC = () => {
       const repositoriesData = repositoriesResponse.data;
       
       // Convert API response to frontend Repository format
-      const frontendRepositories: Repository[] = repositoriesData.repositories.map((repo: any) => ({
-        id: repo.id.toString(),
-        name: repo.name,
-        url: repo.url,
-        description: repo.description,
-        language: repo.language || 'Unknown',
-        stars: repo.stars || 0,
-        forks: repo.forks || 0,
-        last_scan: repo.last_synced_at,
-        scan_count: 0,
-        health_score: 85,
-        issues_count: 0,
-        status: repo.is_private ? 'private' : 'active'
-      }));
+      let frontendRepositories: Repository[] = [];
+      
+      if (Array.isArray(repositoriesData)) {
+        // Trường hợp response trực tiếp là mảng repositories
+        frontendRepositories = repositoriesData.map((repo: any) => ({
+          id: repo.id.toString(),
+          name: repo.name,
+          url: repo.url,
+          description: repo.description,
+          language: repo.language || 'Unknown',
+          stars: repo.stars || 0,
+          forks: repo.forks || 0,
+          last_scan: repo.last_synced_at,
+          scan_count: 0, 
+          health_score: 85,
+          issues_count: 0,
+          status: repo.is_private ? 'private' : 'active'
+        }));
+      } else if (repositoriesData.repositories && Array.isArray(repositoriesData.repositories)) {
+        // Trường hợp response có cấu trúc { repositories: [...], ... }
+        frontendRepositories = repositoriesData.repositories.map((repo: any) => ({
+          id: repo.id.toString(),
+          name: repo.name,
+          url: repo.url,
+          description: repo.description,
+          language: repo.language || 'Unknown',
+          stars: repo.stars || 0,
+          forks: repo.forks || 0,
+          last_scan: repo.last_synced_at,
+          scan_count: 0,
+          health_score: 85,
+          issues_count: 0,
+          status: repo.is_private ? 'private' : 'active'
+        }));
+      } else {
+        console.warn('⚠️ Unexpected repositories data structure:', repositoriesData);
+      }
 
       setRepositories(frontendRepositories);
       
@@ -423,8 +483,10 @@ const Dashboard: React.FC = () => {
           ...prev,
           repository_metrics: {
             ...prev.repository_metrics,
-            total_repositories: repositoriesData.total_count,
-            languages_analyzed: repositoriesData.summary.languages || {}
+            total_repositories: Array.isArray(repositoriesData) 
+              ? repositoriesData.length 
+              : (repositoriesData.total_count || frontendRepositories.length),
+            languages_analyzed: repositoriesData.summary?.languages || {}
           }
         } : null);
       }
@@ -598,9 +660,10 @@ const Dashboard: React.FC = () => {
                   {repositories.map(repo => (
                     <motion.div 
                       key={repo.id} 
-                      className="flex items-center justify-between p-6 border border-gray-100 rounded-xl hover:border-gray-200 hover:shadow-lg transition-all duration-300 bg-white/50"
+                      className="flex items-center justify-between p-6 border border-gray-100 rounded-xl hover:border-gray-200 hover:shadow-lg transition-all duration-300 bg-white/50 cursor-pointer"
                       style={{ marginBottom: '10px' }}
                       whileHover={{ y: -2 }}
+                      onClick={(event) => handleRowClick(repo, event)}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2">
@@ -654,7 +717,10 @@ const Dashboard: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <motion.button
                             className="p-2 text-gray-400 hover:text-blue-600 transition-colors duration-200"
-                            onClick={() => handleViewRepository(repo)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleViewRepository(repo);
+                            }}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.95 }}
                             title="Xem repository"
@@ -663,7 +729,10 @@ const Dashboard: React.FC = () => {
                           </motion.button>
                           <motion.button
                             className="p-2 text-gray-400 hover:text-emerald-600 transition-colors duration-200"
-                            onClick={() => handleEditRepository(repo)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleEditRepository(repo);
+                            }}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.95 }}
                             title="Chỉnh sửa repository"
@@ -676,7 +745,10 @@ const Dashboard: React.FC = () => {
                                 ? 'text-red-600' 
                                 : 'text-gray-400 hover:text-red-600'
                             }`}
-                            onClick={() => handleDelete(repo.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDelete(repo.id);
+                            }}
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.95 }}
                             title={deleteConfirm === repo.id ? 'Xác nhận xoá' : 'Xoá repository'}
@@ -686,7 +758,10 @@ const Dashboard: React.FC = () => {
                           {deleteConfirm === repo.id && (
                             <motion.button
                               className="p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                              onClick={() => setDeleteConfirm(null)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDeleteConfirm(null);
+                              }}
                               initial={{ opacity: 0, scale: 0.8, x: -10 }}
                               animate={{ opacity: 1, scale: 1, x: 0 }}
                               title="Huỷ xoá"
